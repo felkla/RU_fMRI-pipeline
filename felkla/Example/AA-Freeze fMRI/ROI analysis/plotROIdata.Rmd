@@ -1,0 +1,31 @@
+---
+title: "Plot ROI data"
+author: "Felix Klaassen"
+date: "9/29/2022"
+output: html_document
+---
+
+load data
+```{r}
+sigextr <- as.data.frame(as.vector(t(as.matrix(read.csv(file = 'P:/3023009.03/stats/fMRI/freezing/groupstats/T_ant_diffR1/one_sample_ttest/sigextr_AMY-R.csv', header = F)))))
+colnames(sigextr) <- 'effect size' 
+```
+
+barplot
+```{r}
+library(ggplot2)
+ggplot(data = sigextr, aes(x = 1, y = `effect size`)) + geom_jitter(height = 0, width = 0.05, size = 2, alpha = 0.2) + 
+  stat_summary(fun = mean, geom = 'tile', width = 0.1, height = 0.1, color = 'black', fill = 'black') + # error bars (and stats) are not allowed -> double dipping
+  geom_violin(fill = NA, width = 0.3) +
+  coord_cartesian(xlim = c(0.5, 1.5), ylim = c(-3, 3)) +
+  geom_hline(yintercept = 0, color = 'black', size = 1) + 
+  xlab('R-Amygdala cluster') + ylab('arbitrary units [BOLD ~ diffR1]') +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_blank()
+  )
+
+```
+
+
+
