@@ -6,10 +6,10 @@ _Note: This code is work in progress_
 
 
 ### Contributors
-- Felix Klaassen
-- Leonard Craemer
-- Rasmus Bruckner
-- Jan Haaker
+- **Felix Klaassen** - [GitHub](https://github.com/felkla) - [UKE Hamburg](https://www.uke.de/english/physicians-and-scientists/wissenschaftlerprofilseite_felix_klaassen.html)
+- **Leonard Craemer** - [GitHub](https://github.com/lcraemer) - [HU Berlin](https://www.psychology.hu-berlin.de/de/mitarbeiter/1695821)
+- **Rasmus Bruckner** - [GitHub](https://github.com/rasmusbruckner/) - [FU Berlin](https://www.ewi-psy.fu-berlin.de/en/psychologie/arbeitsbereiche/neural_dyn_of_vis_cog/learning-lab/team/bruckner/index.html)
+- **Jan Haaker** - [UKE Hamburg](https://www.uke.de/allgemein/arztprofile-und-wissenschaftlerprofile/wissenschaftlerprofilseite_jan_haaker_20682.html)
 
 ### Acknowledgements
-- Code is partially based on work from Johannes Singer, Felix Molter, Linda de Voogd, Erno Hermans, Christian Büchel
+- Code is partially based on work from [Johannes Singer](https://github.com/Singerjohannes), [Felix Molter](https://github.com/moltaire), [Linda de Voogd](https://github.com/lindvoo/), the [CAN lab](https://github.com/can-lab), the [Büchel lab](https://github.com/ChristianBuechel)
