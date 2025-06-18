@@ -42,7 +42,7 @@ end
 LoadSPM;
 
 %add firstlevel folder to path
-addpath /project/3023009.03/scripts/fMRI/3_firstlevel
+addpath 3_firstlevel
 
 % PERFORM FIRSTLEVEL ANALYSIS
 %--------------------------------------------------------------------------

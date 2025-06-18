@@ -24,7 +24,7 @@ end
 LoadSPM;
 
 %add firstlevel folder to path
-addpath /project/3023009.03/scripts/fMRI/4_secondlevel/
+addpath 4_secondlevel/
 
 %% Perform group-level analysis
 a_aafreeze_secondlevel(DESIGN, ROUTE)

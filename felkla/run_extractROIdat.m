@@ -22,7 +22,7 @@
 % 	sigextr - average signal within the mask of the images
 % 	roixyz  - list of coordinates from which sigextr is taken
 % 
-% NOTE: This function calls 'threeDfind.m', so make sure it's been added 
+% NOTE: This function calls 'extract_BOLD_data.m', so make sure it's been added 
 % to the path.
 %
 % Felkla 2022

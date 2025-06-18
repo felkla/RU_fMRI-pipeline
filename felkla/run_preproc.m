@@ -21,10 +21,10 @@ end
 % PREPARATION
 %--------------------------------------------------------------------------
 %load SPM
-run LoadSPM
+run LoadSPM % some function to load SPM to your path
 
 %add preproc folder to path
-addpath /project/3023009.03/scripts/fMRI/2_preproc
+addpath 2_preproc
 
 % PERFORM PREPROCESSING
 %--------------------------------------------------------------------------
