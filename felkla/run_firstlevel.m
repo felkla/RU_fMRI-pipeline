@@ -1,7 +1,7 @@
 function run_firstlevel(SUBJNAME, DESIGN, ROUTE, HR, est_level)
 %--------------------------------------------------------------------------
 %
-% wrapper function to run first-level abalysis for AA-FREEZE project
+% wrapper function to run first-level analysis for AA-FREEZE project
 %
 % FelKla 2022
 % INPUTS
