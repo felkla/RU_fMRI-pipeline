@@ -12,4 +12,4 @@ _Note: This code is work in progress_
 - **Jan Haaker** - [UKE Hamburg](https://www.uke.de/allgemein/arztprofile-und-wissenschaftlerprofile/wissenschaftlerprofilseite_jan_haaker_20682.html)
 
 ### Acknowledgements
-- Code is partially based on work from [Johannes Singer](https://github.com/Singerjohannes), [Felix Molter](https://github.com/moltaire), [Linda de Voogd](https://github.com/lindvoo/), the [CAN lab](https://github.com/can-lab), the [Büchel lab](https://github.com/ChristianBuechel)
+- This repository contains code that is partially based on work from [Johannes Singer](https://github.com/Singerjohannes), [Felix Molter](https://github.com/moltaire), [Linda de Voogd](https://github.com/lindvoo/), the [CAN lab](https://github.com/can-lab), and the [Büchel lab](https://github.com/ChristianBuechel). Their code is merely included here for the sake of completeness and might be outdated. For the most recent version of their code, please refer to their respective github pages.

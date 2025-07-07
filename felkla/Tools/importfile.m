@@ -9,7 +9,7 @@ function data = importfile(filename, dataLines)
 %  integers for dis-contiguous row intervals.
 %
 %  Example:
-%  gamedata8881212025 = importfile("C:\Users\klaassen\Documents\Research Unit 5389\DynTBU\Projects\0-Pilot\Data\game_data_888_1212025.csv", [2, Inf]);
+%  data = importfile("yourPath\sub-001\behav\game_data_sub-001.csv", [2, Inf]);
 %
 %  See also READTABLE.
 %

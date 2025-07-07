@@ -4,8 +4,9 @@ function a_telos_makeconfile(SUBJNAME, DESIGN)
 % Will make a conditions.mat file which can be used as an input for SPM
 %
 % LdV2018, adapted by FelKla 2020
+%   - added an additional 'DESIGN' input to flexibly switch between designs
 % last edited 12 February 2025 by FelKla
-% Added an additional 'DESIGN' input to flexibly switch between designs
+% 
 %--------------------------------------------------------------------------
 
 %check inputs

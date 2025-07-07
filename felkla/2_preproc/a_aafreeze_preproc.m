@@ -128,7 +128,7 @@ spm_jobman('run',matlabbatch);
 %--------------------------------------------------------------------------
 
 %tSNR image
-a_aafreeze_cnr_tsnr(subjname)
+a_aafreeze_cnr_tsnr(subjname) % note that std calculation seems off. See 'a_telos_cnr_tsnr.m' for correction
 
 %move mean image
 mkdir(fullfile(padi.anat,'meanEPI'));

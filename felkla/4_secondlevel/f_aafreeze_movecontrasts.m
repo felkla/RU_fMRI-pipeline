@@ -1,4 +1,4 @@
-function f_aafreeze_movecontrasts(DESIGN, ROUTE)
+function f_aafreeze_movecontrasts(DESIGN)
 % f_aafreeze_movecontrasts
 % Function to move contrast images to a group-level folder in preparation
 % for second-level analysis
@@ -8,30 +8,17 @@ function f_aafreeze_movecontrasts(DESIGN, ROUTE)
 %% Preparation
 % set input
 if ~exist('DESIGN','var')
-    DESIGN = input('Please input the model design (''basic'',''factorial'',''parametric'',''hybrid'', ''freezing'', ''FIR''): ');
-end
-if strcmp(DESIGN, 'freezing') && ~exist('ROUTE','var')
-    ROUTE = input('Please indicate which route: 1, 2, or 3: ');
-elseif ~exist('ROUTE','var')
-    ROUTE = [];
+    DESIGN = input('Please input the model design (''factorial'',''parametric''): ');
 end
 
 %paths
-padi = i_aafreeze_paths(DESIGN, ROUTE);
+padi = i_aafreeze_paths(DESIGN);
 
 %load first level batch to get the contrast names
 if strcmp(DESIGN,'factorial')
-    load '/project/3023009.03/scripts/fMRI/3_firstlevel/f_aafreeze_firstlevel.mat'
-elseif strcmp(DESIGN, 'basic')
-    load '/project/3023009.03/scripts/fMRI/3_firstlevel/f_aafreeze_firstlevel_basic.mat' 
+    load(fullfile('..','3_firstlevel','batchFiles','f_aafreeze_firstlevel.mat'))
 elseif strcmp(DESIGN, 'parametric')
-    load '/project/3023009.03/scripts/fMRI/3_firstlevel/f_aafreeze_firstlevel_pmod.mat' 
-elseif strcmp(DESIGN, 'hybrid')
-    load '/project/3023009.03/scripts/fMRI/3_firstlevel/f_aafreeze_firstlevel_hybrid.mat' 
-elseif strcmp(DESIGN, 'freezing')
-    load '/project/3023009.03/scripts/fMRI/3_firstlevel/f_aafreeze_firstlevel_freezing.mat'
-elseif strcmp(DESIGN, 'FIR')
-    load '/project/3023009.03/scripts/fMRI/3_firstlevel/f_aafreeze_firstlevel_FIR.mat'
+    load(fullfile('..','3_firstlevel','batchFiles','f_aafreeze_firstlevel_pmod.mat'))
 else
     error('Undefined second level batch file for ''DESIGN'' variable: ''%s''',DESIGN);
 end

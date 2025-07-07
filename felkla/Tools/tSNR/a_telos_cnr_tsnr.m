@@ -44,7 +44,7 @@ for c_run=1:numel(padi.tasks)
     echoSTDs = zeros(dim(1),dim(2),dim(3));
     binmask = ones(dim(1),dim(2),dim(3));%start with all voxels
     allEchoes = zeros(dim(1),dim(2),dim(3),numel(funcscans));
-       
+
     %loop over volumes
     clearvars temp
     for i = 1:numel(funcscans)
@@ -63,27 +63,15 @@ for c_run=1:numel(padi.tasks)
         
         % create 4D matrix (x - y - z - time) to compute standard deviation
         allEchoes(:,:,:,i) = spm_read_vols(spm_vol(funcscans{i}));
-
-        %old by LdV:
-        %sequentially add up squared deviations divided by n-1
-%         echoSTDs(:,:,:) = ...
-%             echoSTDs(:,:,:) + ...
-%             spm_read_vols(spm_vol(funcscans{i})) - ...
-%             echoMeans(:,:,:) ./ numel(funcscans)-1;
             
     end
     
     %take standard deviation per voxel over time
     echoSTDs = std(allEchoes,[],4);
-    
-    %old by LdV
-%     echoSTDs(:,:,:) = echoSTDs(:,:,:).^.5;
 
-    %calculate tSNR and CNR
-%     warning off;    %to avoid messages concerning divide by zero
+    %calculate tSNR
     clearvars tSNR
     tSNR(:,:,:) = echoMeans(:,:,:)./echoSTDs(:,:,:);
-%     warning on;
     
     %optional: plot a slice of the brain
     figure;imagesc(tSNR(:,:,24)); colormap('gray'); title(['tSNR for ' subjname ', run' num2str(c_run)]); colorbar

@@ -1,4 +1,4 @@
-function a_aafreeze_firstlevel(SUBJNAME,DESIGN, ROUTE, takeHR, est_level)
+function a_aafreeze_firstlevel(SUBJNAME, DESIGN, takeHR)
 
 %--------------------------------------------------------------------------
 %
@@ -21,18 +21,7 @@ end
 
 %get info which model to run
 if ~exist('DESIGN','var')
-    DESIGN = input('Please input design type (''basic'', ''factorial'', ''parametric'', ''freezing'', or ''FIR''): ');
-end
-if strcmp(DESIGN,'freezing') 
-    if ~exist('ROUTE','var')
-        ROUTE = input('Please indicate which route: 1, 2, or 3: ');
-    end
-    if ~exist('est_level','var')
-        est_level = input('Please input whether model-based estimates are on group-level or subject-level (''group'' or ''sub'') :');
-    end
-else
-    ROUTE = [];
-    est_level = '';
+    DESIGN = input('Please input design type (''factorial'', ''parametric''): ');
 end
 
 %use HR as nuisance regressor?
@@ -47,7 +36,7 @@ end
 padi = i_aafreeze_infofile(SUBJNAME);
 
 %run conditions
-a_aafreeze_makeconfile(SUBJNAME, DESIGN, ROUTE, est_level);
+a_telos_makeconfile(SUBJNAME, DESIGN);
 
 %run retroicorspm
 for c_run = 1:numel(padi.tasks)
@@ -62,32 +51,18 @@ end
 %--------------------------------------------------------------------------
 
 %stats output
-if strcmp(DESIGN,'freezing')
-    statspath = fullfile(padi.stats,DESIGN,['R' num2str(ROUTE)],char(SUBJNAME));
-else
-    statspath = fullfile(padi.stats,DESIGN,char(SUBJNAME));
-end
+statspath = fullfile(padi.stats,DESIGN,char(SUBJNAME));
 if exist(statspath,'dir'); rmdir(statspath,'s'); end %remove when exists
 mkdir(statspath);
 
 % RUN FIRST LEVEL
 %--------------------------------------------------------------------------
 %load spm batch
-if strcmp(DESIGN,'basic')
-    load f_aafreeze_firstlevel_basic.mat
-    
-elseif strcmp(DESIGN,'factorial')
+if strcmp(DESIGN,'factorial')
     if any(strcmp(SUBJNAME,padi.tworuns))
         load f_aafreeze_firstlevel_tworuns.mat
     else
         load f_aafreeze_firstlevel.mat
-    end
-
-elseif strcmp(DESIGN,'hybrid')
-    if any(strcmp(SUBJNAME,padi.tworuns))
-        load f_aafreeze_firstlevel_hybrid_tworuns.mat
-    else
-        load f_aafreeze_firstlevel_hybrid.mat
     end
 
 elseif strcmp(DESIGN,'parametric')
@@ -96,20 +71,10 @@ elseif strcmp(DESIGN,'parametric')
     else
         load f_aafreeze_firstlevel_pmod.mat
     end   
-    
-elseif strcmp(DESIGN,'freezing')
-    if any(strcmp(SUBJNAME,padi.tworuns))
-        load f_aafreeze_firstlevel_freezing_tworuns.mat
-    else
-        load f_aafreeze_firstlevel_freezing.mat
-    end
 
-elseif strcmp(DESIGN,'FIR')
-    if any(strcmp(SUBJNAME,padi.tworuns))
-        load f_aafreeze_firstlevel_FIR_tworuns.mat
-    else
-        load f_aafreeze_firstlevel_FIR.mat
-    end
+elseif strcmp(DESIGN,'predatorGame')
+    load f_telos_firstlevel.mat
+    
 end
 
 %some pp do not have HR
@@ -139,15 +104,9 @@ if takeHR && ~strcmp(DESIGN,'FIR')
     % (i.e., the number of regressors *preceding* the RETROICOR)
     if strcmp(DESIGN, 'factorial')
         padding = zeros(10,11);
-        
-    elseif strcmp(DESIGN, 'hybrid')
-        padding = zeros(10,13);
     
     elseif strcmp(DESIGN, 'parametric')
         padding = zeros(10,13);
-        
-    elseif any(strcmp(DESIGN,{'freezing'}))
-        padding = zeros(10,13); % was 10
 
     end
     

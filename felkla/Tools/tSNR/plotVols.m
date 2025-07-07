@@ -2,10 +2,18 @@
 % Felix Klaassen March 2025
 % set parameters
 subnr = 5;
-% subjname = ['pilot0' num2str(subnr)];
-subjname = ['sub-00' num2str(subnr)];
 
-tsnrDir = '/home/klaassen/projects/telos/output/stats/tSNR';
+if subnr < 10
+    subjname = ['sub-00' num2str(subnr)];
+elseif subnr < 100
+    subjname = ['sub-0' num2str(subnr)];
+else
+    subjname = ['sub-' num2str(subnr)];
+end
+
+padi = i_telos_infofile(subjname);
+curDir = pwd;
+tsnrDir = fullfile(padi.stats,'tSNR');
 
 %% plot average tSNR maps per run
 subFiles = dir(fullfile(tsnrDir,subjname,'*.nii'));
