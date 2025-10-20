@@ -1,6 +1,8 @@
 % Example config file for the research unit (RU) preprocessing pipeline
 % ---------------------------------------------------------------------
+% Template created by Rasmus Bruckner, Felix Klaassen
 
+%% Preparation
 % Initialization
 % --------------
 
@@ -8,16 +10,20 @@ clc
 close all
 clearvars
 
-% Directories 
+debug = true;
+
+% Directories
 % -----------
 % Get the parent directory of the current directory
 parentDir = fileparts(pwd);
 
 % SPM12
 spmPath = fullfile(parentDir,'spm12/');
-addpath(spmPath)
-spm('defaults','fmri')
-spm_jobman('initcfg')
+if ~debug
+    addpath(spmPath)
+    spm('defaults','fmri')
+    spm_jobman('initcfg')
+end
 
 % Data source root directory
 % E.g., dsRoot = '~/Documents/gb_fmri_data/BIDS/ds_xxx';
@@ -29,7 +35,7 @@ srcDir = 'func';  % functional data sub-directory
 subDir = dir(fullfile(dsRoot,'sub*'));
 subDir = {subDir.name}';
 
-% Data target directory 
+% Data target directory
 tgtDir = fullfile(cd,'derived');
 
 % BIDS format file name part labels
@@ -38,54 +44,74 @@ BIDSlabel{2} = ''; % BIDS file name acquisition label
 BIDSlabel{3} = '_run-00'; % BIDS file name run index
 BIDSlabel{4} = '_bold'; % BIDS file name modality suffix
 
-% Select run numbers 
+% Select run numbers
 % E.g., run_sel = {[1], [1:6]};
 for i = 1:length(subDir)
     run_sel{i} = {[1],[1:12]};
-end 
+end
 
-% Select preprocessing steps 
+%% Select preprocessing steps
 %       0. Create folder and import func and anat files --> if this is
-%       selected, the current folder is deleted and recreated 
+%       selected, the current folder is deleted and recreated
 %       1. Segmentation/Normalization of T1 images
-%       2. Realignement
+%       2. Realignment
 %       3. Slice-timing correction
-%       4. Coregistration of mean EPI to T1       
+%       4. Coregistration of mean EPI to T1
 %       5. Application of normalization parameters to EPI data
 %       6. Smoothing
 
 % Default settings for RU pipeline
-stepSegmentationT1 = false;
+stepSegmentation = true;
 stepRealignment = true;
 stepSlicetiming = false;
-stepCoregistration = false; 
+stepCoregistration = true;
 stepNormalization = true;
 stepSmoothing = false;
+stepDeleteFiles = true;
 
-% Preprocessing variables
-prep_vars = preprocessingVars();
-prep_vars.spmPath = spmPath;
-prep_vars.dsRoot = dsRoot;
-prep_vars.srcDir = srcDir;
-prep_vars.tgtDir = tgtDir;
-prep_vars.BIDSlabel = BIDSlabel;
-prep_vars.stepSegmentationT1 = stepSegmentationT1;
-prep_vars.stepRealignment = stepRealignment;
-prep_vars.stepSlicetiming = stepSlicetiming;
-prep_vars.stepCoregistration = stepCoregistration;
-prep_vars.stepNormalization = stepNormalization;
-prep_vars.stepSmoothing = stepSmoothing;
-prep_vars.nSlices = 57;
-prep_vars.TR = 1.5;
-prep_vars.sliceTiming = [0, 0.78, 0.0775, 0.8575, 0.1575, 0.935, 0.235, 1.0125,...
-                        0.3125, 1.09, 0.39, 1.17, 0.4675, 1.2475, 0.545, 1.325,...
-                        0.625, 1.4025, 0.7025, 0, 0.78, 0.0775, 0.8575, 0.1575,...
-                        0.935, 0.235, 1.0125, 0.3125, 1.09, 0.39, 1.17, 0.4675,...
-                        1.2475, 0.545, 1.325, 0.625, 1.4025, 0.7025, 0, 0.78,...
-                        0.0775, 0.8575, 0.1575, 0.935, 0.235, 1.0125, 0.3125,...
-                        1.09, 0.39, 1.17, 0.4675, 1.2475, 0.545, 1.325, 0.625, 1.4025, 0.7025];
+% Initialize preprocessing variables object
+prepVars = preprocessingVars();
 
+%update paths
+prepVars.spmPath = spmPath;
+prepVars.dsRoot = dsRoot;
+prepVars.srcDir = srcDir;
+prepVars.tgtDir = tgtDir;
+prepVars.BIDSlabel = BIDSlabel;
+
+%update steps
+prepVars.stepSegmentation = stepSegmentation;
+prepVars.stepRealignment = stepRealignment;
+prepVars.stepSlicetiming = stepSlicetiming;
+prepVars.stepCoregistration = stepCoregistration;
+prepVars.stepNormalization = stepNormalization;
+prepVars.stepSmoothing = stepSmoothing;
+prepVars.stepDeleteFiles = stepDeleteFiles;
+
+prepVars.preprocessingComponents = [stepSegmentation,...
+                                    stepRealignment,...
+                                    stepSlicetiming,...
+                                    stepCoregistration,...
+                                    stepNormalization,...
+                                    stepSmoothing];
+
+%update fmri parameters
+prepVars.nSlices = 57;
+prepVars.TR = 1.5;
+prepVars.sliceTiming = [0, 0.78, 0.0775, 0.8575, 0.1575, 0.935, 0.235, 1.0125,...
+    0.3125, 1.09, 0.39, 1.17, 0.4675, 1.2475, 0.545, 1.325,...
+    0.625, 1.4025, 0.7025, 0, 0.78, 0.0775, 0.8575, 0.1575,...
+    0.935, 0.235, 1.0125, 0.3125, 1.09, 0.39, 1.17, 0.4675,...
+    1.2475, 0.545, 1.325, 0.625, 1.4025, 0.7025, 0, 0.78,...
+    0.0775, 0.8575, 0.1575, 0.935, 0.235, 1.0125, 0.3125,...
+    1.09, 0.39, 1.17, 0.4675, 1.2475, 0.545, 1.325, 0.625, 1.4025, 0.7025];
+
+%% Run preprocessing 
 % Initialize preprocessing object
-preprocessing_obj = preprocessingObj(prep_vars);
+prepObj = preprocessingObj(prepVars);
 
-% Call the function (tbc) that implements preprocessing across subjects
+% Call the function that implements preprocessing across subjects
+subs = [201]; % array/vector of subject numbers/IDs
+prepObj.preprocessLoop(subs);
+
+fprintf('Preprocessing finished!\n')
