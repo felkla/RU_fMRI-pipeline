@@ -1,5 +1,5 @@
 classdef preprocessingVars
-    %PREPROCESSINGVARS This class contains the default preprocessing variables
+    %PREPROCESSINGVARS  This class contains the default preprocessing variables
 
     properties
         
@@ -32,7 +32,7 @@ classdef preprocessingVars
     methods
 
         function obj = preprocessingVars()
-            % PREPROCESSINGVARS Initializes the object instance
+            % PREPROCESSINGVARS Function that initializes the object instance
             
             % Get the parent directory of the current directory
             parentDir = fileparts(pwd);
