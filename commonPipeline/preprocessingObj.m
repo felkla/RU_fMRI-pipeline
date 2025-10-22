@@ -86,7 +86,8 @@ classdef preprocessingObj
             %       none
 
             % select subject data
-            fprintf('Preprocessing sub %i\n', subNr)
+            subID = sprintf('sub-%2.3d',subNr); % BIDS-compliant subject IDs (e.g., 'sub-001')
+            fprintf('%s - Preprocessing started\n', subID)
 
             % select preprocessing steps
             obj.steps = obj.steps(find(obj.preprocessingComponents == true));
@@ -99,7 +100,12 @@ classdef preprocessingObj
 
             % loop over preprocessing steps
             for s = 1:numel(obj.steps)
+                
+                % inform user
+                fprintf('%s - starting step %i: %s\n', subID, s, obj.steps{s})
+
                 switch obj.steps{s}
+                    
                     case 'segmentation'
                         obj.runSegmentation(subNr);
 
@@ -119,16 +125,20 @@ classdef preprocessingObj
                         obj.runSmoothing(subNr);
 
                 end % switch steps
+                
+                % inform user
+                fprintf('%s - completed step %i: %s\n', subID, s, obj.steps{s})
 
             end % loop steps
             
             % delete intermediate files
             if obj.stepDeleteFiles
+                fprintf('%s - deleting intermediate files...\n', subID)
                 obj.deleteFiles(subNr)
             end
             
             % inform user
-            fprintf('sub %i - Done!\n-------------------------------\n', subNr)
+            fprintf('%s - Preprocessing completed\n----------------------------------\n', subID)
         end
 
         % Preprocessing steps
@@ -145,10 +155,10 @@ classdef preprocessingObj
             %       subNr: subject ID
             %   Output
             %       none
-            fprintf('sub %i - running step: Segmentation... ', subNr)
+            
             % do segmentation
+            fprintf('<segmenting sub %i...>\n', subNr) % placeholder code
 
-            fprintf('Done!\n')
         end
 
         % runRealignment
@@ -160,10 +170,10 @@ classdef preprocessingObj
             %       subNr: subject ID
             %   Output
             %       none
-            fprintf('sub %i - running step: Realignment... ', subNr)
-            % do realignment
 
-            fprintf('Done!\n')
+            % do realignment
+            fprintf('<realigning sub %i...>\n', subNr) % placeholder code
+
         end
 
         % runSlicetiming (optional)
@@ -175,10 +185,10 @@ classdef preprocessingObj
             %       subNr: subject ID
             %   Output
             %       none
-            fprintf('sub %i - running step: Slicetiming... ', subNr)
-            % do slice time correction
 
-            fprintf('Done!\n')
+            % do slice time correction
+            fprintf('<slice-time correcting sub %i...>\n', subNr) % placeholder code
+
         end
 
         % runCoregistration
@@ -191,10 +201,9 @@ classdef preprocessingObj
             %   Output
             %       none
 
-            fprintf('sub %i - running step: Coregistration... ', subNr)
             % do coregistration
+            fprintf('<coregistering sub %i...>\n', subNr) % placeholder code
             
-            fprintf('Done!\n')
         end
 
         % runNormalization (optional?)
@@ -208,10 +217,9 @@ classdef preprocessingObj
             %   Output
             %       none
 
-            fprintf('sub %i - running step: Normalization... ', subNr)
             % do normalization
-            
-            fprintf('Done!\n')
+            fprintf('<normalizing sub %i...>\n', subNr) % placeholder code
+
         end
 
         % runSmoothing (optional)
@@ -224,11 +232,9 @@ classdef preprocessingObj
             %   Output
             %       none
             
-            fprintf('sub %i - running step: Smoothing... ', subNr)
-            
             % do smoothing
+            fprintf('<smoothing sub %i...>\n', subNr) % placeholder code
 
-            fprintf('Done!\n')
         end
 
         % Other functions
@@ -240,15 +246,27 @@ classdef preprocessingObj
             %   the preprocessing pipeline to each subject
             %
             %   Input
-            %       subs: vector containing subject IDs (BIDS compatible)
+            %       subs: vector containing subject numbers
             %
             %   Output
             %       none
+            
+            % inform user
+            fprintf('Preprocessing subjects:')
+            for s = 1:numel(subs)
+                if s < numel(subs)
+                    fprintf(' %i,', subs(s))
+                else
+                    fprintf(' %i\n', subs(s))
+                end
+            end
 
             % loop over subjects
             for s = 1:numel(subs)
                 obj.preprocessSubj(subs(s));
             end
+
+            fprintf('Preprocessing finished!\n')
         end
 
         % deleteFiles
@@ -260,15 +278,19 @@ classdef preprocessingObj
             %
             %   Output
             %       none
-
+            
+            fprintf('<deleting files of sub %i, steps:', subNr) % placeholder code
+            
             for i = 1:numel(obj.steps)
-                fprintf('sub %i - deleting intermediate files for step: %s... ', subNr, obj.steps{i})
                 
                 % do deletion
-
-                fprintf('Done!\n')                
+                if i < numel(obj.steps) % placeholder code
+                    fprintf(' %s,', obj.steps{i})
+                else
+                    fprintf(' %s>\n', obj.steps{i})
+                end
             end
-        end
+        end 
 
     end % methods
 end % class

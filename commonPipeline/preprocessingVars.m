@@ -32,7 +32,8 @@ classdef preprocessingVars
     methods
 
         function obj = preprocessingVars()
-            % PREPROCESSINGVARS Function that initializes the object instance
+            % PREPROCESSINGVARS Function that initializes the object
+            %   instance with default parameters (adjust to fit your setup)
             
             % Get the parent directory of the current directory
             parentDir = fileparts(pwd);
@@ -69,7 +70,7 @@ classdef preprocessingVars
                                             obj.stepSmoothing];
 
             % fMRI parameters
-            obj.runSel = {1,1:12};  % should match example data
+            obj.runSel{1} = {1:4};  % should match example data
             obj.nSlices = 57; % should match example data
             obj.TR = 1.5; % should match example data
             obj.sliceTiming = nan; % should match example data
