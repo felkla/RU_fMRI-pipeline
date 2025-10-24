@@ -69,7 +69,7 @@ classdef preprocessingVars
                                             obj.stepNormalization,...
                                             obj.stepSmoothing];
 
-            % fMRI parameters
+            % fMRI parameters - remove defaults for specific settings (and give warning for some?)
             obj.runSel{1} = {1:4};  % should match example data
             obj.nSlices = 57; % should match example data
             obj.TR = 1.5; % should match example data

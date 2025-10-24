@@ -84,7 +84,7 @@ prepVars.BIDSlabel = BIDSlabel;
 prepVars.stepSegmentation = stepSegmentation;
 prepVars.stepRealignment = stepRealignment;
 prepVars.stepSlicetiming = stepSlicetiming;
-prepVars.stepCoregistration = stepCoregistration;
+prepVars.stepCoregistration = stepCoregistration; % add option to do coregistration between two functional runs (if ppt left scanner)
 prepVars.stepNormalization = stepNormalization;
 prepVars.stepSmoothing = stepSmoothing;
 prepVars.stepDeleteFiles = stepDeleteFiles;
@@ -96,7 +96,7 @@ prepVars.preprocessingComponents = [stepSegmentation,...
                                     stepNormalization,...
                                     stepSmoothing];
 
-%update fmri parameters
+%update fmri parameters - in actual example config, remove the defaults (or set to nan)
 prepVars.runSel = runSel; % nr of functional runs for each subject
 prepVars.nSlices = 57;
 prepVars.TR = 1.5;
