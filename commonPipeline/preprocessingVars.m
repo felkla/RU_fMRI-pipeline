@@ -5,9 +5,13 @@ classdef preprocessingVars
         
         % paths and directories
         spmPath % SPM path
-        dsRoot % data source root directory
-        srcDir % source directory
-        tgtDir % data target directory
+        dsRoot % data source root directory (BIDS folder)
+        preRoot % data target root directory
+        srcDir % session-specific source directory
+        tgtDir % session-specific data target directory
+        funcLab % label for functional data sub directory
+        anatLab % label for anatomical data sub directory
+        fmapLab % label for field-map data sub directory
         BIDSlabel % BIDS labels
 
         % preprocessing steps
@@ -22,6 +26,7 @@ classdef preprocessingVars
         preprocessingComponents % list of preprocessing steps to perform
 
         % fMRI parameters
+        subjects % subject IDs
         runSel % fMRI run numbers
         nSlices % number of slices for each volume
         TR % TR of the sequence
@@ -41,11 +46,15 @@ classdef preprocessingVars
             % SPM12
             obj.spmPath = fullfile(parentDir,'spm12/');
             obj.dsRoot = fullfile(parentDir,'exampleData/');
-            obj.srcDir = 'func';
-            obj.tgtDir = fullfile(cd,'derived');
+            obj.preRoot = fullfile(obj.dsRoot,'derived');
+            obj.srcDir = {''};
+            obj.tgtDir = {''};
+            obj.funcLab = 'func';
+            obj.anatLab = 'anat';
+            obj.fmapLab = 'fmap';
             obj.BIDSlabel{1} = {'_task-localizer';'_task-main'}; % BIDS file name task label
             obj.BIDSlabel{2} = ''; % BIDS file name acquisition label
-            obj.BIDSlabel{3} = '_run-00'; % BIDS file name run index
+            obj.BIDSlabel{3} = '_run-0'; % BIDS file name run index
             obj.BIDSlabel{4} = '_bold'; % BIDS file name modality suffix
 
             % Choose preprocessing steps
@@ -70,10 +79,11 @@ classdef preprocessingVars
                                             obj.stepSmoothing];
 
             % fMRI parameters - remove defaults for specific settings (and give warning for some?)
+            obj.subjects = {'all'};
             obj.runSel{1} = {1:4};  % should match example data
-            obj.nSlices = 57; % should match example data
-            obj.TR = 1.5; % should match example data
-            obj.sliceTiming = nan; % should match example data
+            obj.nSlices = nan;      % should match example data
+            obj.TR = nan;           % should match example data
+            obj.sliceTiming = nan;  % should match example data
         end
     end
 end
