@@ -17,13 +17,15 @@ classdef preprocessingVars
         % preprocessing steps
         steps   % list of preprocessing steps
         stepSegmentation % segmentation/Normalization of T1 images
-        stepRealignment % realignment
         stepSlicetiming % slicetiming correction
+        stepUnwarping % unwarping (fmap correction)
+        stepRealignment % realignment
         stepCoregistration % coregistration of mean EPI to T1
         stepNormalization % application of normalization parameters to EPI data
         stepSmoothing % smoothing
         stepDeleteFiles % delete intermediate files
         preprocessingComponents % list of preprocessing steps to perform
+        prefix
 
         % fMRI parameters
         subjects % subject IDs
@@ -52,32 +54,45 @@ classdef preprocessingVars
             obj.funcLab = 'func';
             obj.anatLab = 'anat';
             obj.fmapLab = 'fmap';
-            obj.BIDSlabel{1} = {'_task-localizer';'_task-main'}; % BIDS file name task label
+            obj.BIDSlabel{1} = {'task-localizer';'_task-main'}; % BIDS file name task label
             obj.BIDSlabel{2} = ''; % BIDS file name acquisition label
-            obj.BIDSlabel{3} = '_run-0'; % BIDS file name run index
-            obj.BIDSlabel{4} = '_bold'; % BIDS file name modality suffix
+            obj.BIDSlabel{3} = 'run-0'; % BIDS file name run index
+            obj.BIDSlabel{4} = 'bold'; % BIDS file name modality suffix
 
             % Choose preprocessing steps
             obj.steps = {'segmentation',...
-                'realignment',...
-                'slicetiming',...
-                'coregistration',...
-                'normalization',...
-                'smoothing'};
+                        'slicetiming',...    
+                        'realignment',...
+                        'unwarping',...
+                        'coregistration',...
+                        'normalization',...
+                        'smoothing'};
+
             obj.stepSegmentation = false;
-            obj.stepRealignment = true;
             obj.stepSlicetiming = false;
+            obj.stepUnwarping = false;
+            obj.stepRealignment = true;
             obj.stepCoregistration = true;
             obj.stepNormalization = true;
             obj.stepSmoothing = false;
             obj.stepDeleteFiles = false;
             obj.preprocessingComponents = [obj.stepSegmentation,...
-                                            obj.stepRealignment,...
                                             obj.stepSlicetiming,...
+                                            obj.stepUnwarping,...
+                                            obj.stepRealignment,...
                                             obj.stepCoregistration,...
                                             obj.stepNormalization,...
                                             obj.stepSmoothing];
 
+            % prefixes
+            obj.prefix.segmentation = '';
+            obj.prefix.slicetiming = 'a';
+            obj.prefix.unwarping = 'u';
+            obj.prefix.realignment = 'r';
+            obj.prefix.coregistration = '';
+            obj.prefix.normalization = 'w';
+            obj.prefix.smoothing = 's';
+            
             % fMRI parameters - remove defaults for specific settings (and give warning for some?)
             obj.subjects = {'all'};
             obj.runSel{1} = {1:4};  % should match example data

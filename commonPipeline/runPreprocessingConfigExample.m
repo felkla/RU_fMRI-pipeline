@@ -18,13 +18,9 @@ parentDir = fullfile('C:\Users','klaassen','Documents','Research Unit 5389','Gen
 
 % SPM12/SPM25 directory
 % spmPath = fullfile(parentDir,'spm12/');
-spmVersion = 12; %or 25
-if spmVersion == 25
-    spmPath = fullfile('C:\Users','klaassen','Documents','MATLAB','spm25');
-else
-    spmPath = fullfile('C:\Users','klaassen','Documents','MATLAB','spm12');
-end
-
+spmVersion = 12; %12 or 25
+assert(any([12, 25] == spmVersion), 'Unknown SPM version')
+spmPath = fullfile('C:\Users','klaassen','Documents','MATLAB',['spm' num2str(spmVersion)]);
 addpath(spmPath)
 % spm('defaults','fmri') % currently also called in the preprocessing steps
 % spm_jobman('initcfg') % currently also called in the preprocessing steps
@@ -55,10 +51,10 @@ end
 assert(numel(allSubjects) == numel(runSel), 'Length of subject- and run lists should match!')
 
 % BIDS format file name part labels - do we need the underscores?
-BIDSlabel{1} = {'_task-PT'}; % BIDS file name task label: BIDSlabel{1} = {'task1';'task2')
+BIDSlabel{1} = {'task-PT'}; % BIDS file name task label: BIDSlabel{1} = {'task1';'task2')
 BIDSlabel{2} = ''; % BIDS file name acquisition label
-BIDSlabel{3} = '_run-0'; % BIDS file name run index
-BIDSlabel{4} = '_bold'; % BIDS file name modality suffix
+BIDSlabel{3} = 'run-0'; % BIDS file name run index
+BIDSlabel{4} = 'bold'; % BIDS file name modality suffix
 
 %% Select preprocessing steps
 %       0. Create folder and import func and anat files --> if this is
@@ -72,12 +68,20 @@ BIDSlabel{4} = '_bold'; % BIDS file name modality suffix
 
 % Default settings for RU pipeline
 stepSegmentation = false;
-stepRealignment = true;
 stepSlicetiming = false; % -> consider doing this *before* realignment (see büchel pipeline)
+stepUnwarping = false;
+stepRealignment = true;
 stepCoregistration = false; % -> add option to do non-linear coregistration (e.g., instead of fmap correction; see büchel pipeline)
 stepNormalization = false;
 stepSmoothing = false;
 stepDeleteFiles = false;
+
+%prefix
+prefix.slicetiming = 'a';
+prefix.unwarping = 'u';
+prefix.realignment = 'r';
+prefix.normalization = 'w';
+prefix.smoothing = 's';
 
 % Initialize preprocessing variables object
 prepVars = preprocessingVars();
@@ -93,19 +97,28 @@ prepVars.BIDSlabel = BIDSlabel;
 
 %update steps
 prepVars.stepSegmentation = stepSegmentation;
-prepVars.stepRealignment = stepRealignment;
 prepVars.stepSlicetiming = stepSlicetiming;
+prepVars.stepUnwarping = stepUnwarping;
+prepVars.stepRealignment = stepRealignment;
 prepVars.stepCoregistration = stepCoregistration; % -> add option to do coregistration between two functional runs (if ppt left scanner)
 prepVars.stepNormalization = stepNormalization;
 prepVars.stepSmoothing = stepSmoothing;
 prepVars.stepDeleteFiles = stepDeleteFiles;
 
 prepVars.preprocessingComponents = [stepSegmentation,...
-                                    stepRealignment,...
                                     stepSlicetiming,...
+                                    stepUnwarping,...
+                                    stepRealignment,...
                                     stepCoregistration,...
                                     stepNormalization,...
                                     stepSmoothing];
+
+%update prefixes
+prepVars.prefix.slicetiming = prefix.slicetiming;
+prepVars.prefix.unwarping = prefix.unwarping;
+prepVars.prefix.realignment = prefix.realignment;
+prepVars.prefix.normalization = prefix.normalization;
+prepVars.prefix.smoothing = prefix.smoothing;
 
 % Select subjects to preprocess
 subs2incl = {'203'}; % should be cell array with your BIDS-compliant numbers: subs2incl = {'001','002','051'}, or 'all' to preprocess all subjects in dsRoot
@@ -121,14 +134,6 @@ prepVars.runSel = runSel(sub_idx); % update nr of functional runs for selected s
 prepVars.nSlices = 66;
 prepVars.TR = 1.975;
 prepVars.sliceTiming = [];
-
-% check if minimally-required preprocessing parameters are defined. 
-% TODO: or should we move these checks to the prepObj-class methods that implement these steps?
-assert(~isnan(prepVars.nSlices) | ~isnan(prepVars.TR), 'Not all required preprocessing parameters are defined!');
-if stepSlicetiming == true
-    assert(any(~isnan(prepVars.sliceTiming)),'stepSlicetiming: Not all required preprocessing parameters are defined!');
-    assert(prepVars.nSlices == numel(prepVars.sliceTiming), 'stepSlicetiming: Number of slices does not match number of slice timings!')
-end
 
 %% Run preprocessing 
 % Initialize preprocessing object

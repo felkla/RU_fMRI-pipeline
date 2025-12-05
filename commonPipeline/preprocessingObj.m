@@ -18,13 +18,16 @@ classdef preprocessingObj
         % preprocessing steps
         steps % list of preprocessing steps
         stepSegmentation % segmentation/Normalization of T1 images
-        stepRealignment % realignement
         stepSlicetiming % slicetiming correction
+        stepUnwarping % unwarping (fmap correction)
+        stepRealignment % realignment
         stepCoregistration % coregistration of mean EPI to T1
         stepNormalization % application of normalization parameters to EPI data
         stepSmoothing % smoothing
         stepDeleteFiles % delete intermediate files
         preprocessingComponents % list of preprocessing steps to perform
+        prefix % prefix for each preprocessing step
+        currPrefix % variable to dynamically update prefix
 
         % fMRI parameters
         subjects % selected subjects (IDs)
@@ -63,13 +66,15 @@ classdef preprocessingObj
             % preprocessing steps
             obj.steps = preprocessingVars.steps;
             obj.stepSegmentation = preprocessingVars.stepSegmentation;
-            obj.stepRealignment = preprocessingVars.stepRealignment;
             obj.stepSlicetiming = preprocessingVars.stepSlicetiming;
+            obj.stepUnwarping = preprocessingVars.stepUnwarping;
+            obj.stepRealignment = preprocessingVars.stepRealignment;
             obj.stepCoregistration = preprocessingVars.stepCoregistration;
             obj.stepNormalization = preprocessingVars.stepNormalization;
             obj.stepSmoothing = preprocessingVars.stepSmoothing;
             obj.stepDeleteFiles = preprocessingVars.stepDeleteFiles;
             obj.preprocessingComponents = preprocessingVars.preprocessingComponents;
+            obj.prefix = preprocessingVars.prefix;
 
             % fMRI parameters
             obj.subjects = preprocessingVars.subjects;
@@ -94,6 +99,9 @@ classdef preprocessingObj
             %   Output
             %       none
 
+            % check if minimally-required preprocessing parameters are defined
+            assert(~isnan(obj.nSlices) | ~isnan(obj.TR), 'Not all required preprocessing parameters are defined!');
+            
             % select subject data
             subDir = fullfile(obj.dsRoot, subID);
             sesDir = dir(fullfile(subDir, 'ses*'));
@@ -161,20 +169,29 @@ classdef preprocessingObj
                         case 'segmentation'
                             obj.runSegmentation(subID);
 
-                        case 'realignment'
-                            obj.runRealignment(subID, sesDir{ses});
-
                         case 'slicetiming'
                             obj.runSlicetiming(subID);
+                            obj.currPrefix = obj.prefix.slicetiming;
+
+                        case 'unwarping'
+                            obj.runUnwarping(subID);
+                            obj.currPrefix = obj.prefix.unwarping;
+
+                        case 'realignment'
+                            obj.runRealignment(subID, sesDir{ses});
+                            obj.currPrefix = obj.prefix.realignment;
 
                         case 'coregistration'
                             obj.runCoregistration(subID);
+                            obj.currPrefix = obj.prefix.coregistration;
 
                         case 'normalization'
                             obj.runNormalization(subID);
+                            obj.currPrefix = obj.prefix.normalization;
 
                         case 'smoothing'
                             obj.runSmoothing(subID);
+                            obj.currPrefix = obj.prefix.smoothing;
 
                     end %switch steps
 
@@ -216,7 +233,53 @@ classdef preprocessingObj
 
         end
 
-        % runRealignment
+        % runSlicetiming (optional)
+        function obj = runSlicetiming(obj, subID)
+            % RUNSLICETIMING Function to perform slice-timing correction
+            %   of the functional images
+            %
+            %   Input
+            %       subNr: subject ID
+            %   Output
+            %       none
+
+            %notes:
+            % - STC for TR ~ 2 s is the sweet spot and recommended. 
+            %   For TRs below 1 s, STC has not a big effect, 
+            %   and for TRs above ~3 s STC is not great (requires a lot of interpolation). 
+            % - STC for interleaved acquisition order is tricky because you have to do STC before realignment. 
+            %   STC for sequential (e.g. descending) acquisition order can be
+            %   done after realignment, unless you expect lots of motion
+            % - Note that the onsets in 1st-level GLM should be adapted to
+            %   reflect the new time-corrected TRs!
+            %   See also the SPM website: https://www.fil.ion.ucl.ac.uk/spm/docs/tutorials/fmri/preprocessing/slice_timing/
+
+            % do slice time correction
+            fprintf('<slice-time correcting %s...>\n', subID) % placeholder code
+            
+            % some input checks
+            assert(any(~isnan(prepVars.sliceTiming)),'stepSlicetiming: Slice timings are missing!');
+            assert(prepVars.nSlices == numel(prepVars.sliceTiming), 'stepSlicetiming: Number of slices does not match number of slice timings!')
+
+        end
+        
+        % runUnwarping (if no realignment)
+        function obj = runUnwarping(obj, subID)
+            % RUNUNWARPING Function to compute voxel-displacement map (VDM) 
+            %   and unwarp + realign the EPIs (field-map correction)
+            %
+            %   Input
+            %       subNr: subject ID
+            %   Output
+            %       none
+
+            % do unwarping
+            fprintf('<unwarping %s...>\n', subID) % placeholder code
+
+        end
+        
+        
+        % runRealignment (if no unwarping)
         function obj = runRealignment(obj, subID, sesDir)
             % RUNREALIGNMENT Function to perform realignment of the
             %   functional images
@@ -241,14 +304,14 @@ classdef preprocessingObj
             for r = 1:nRuns
                 if ~isempty(sesDir)
                     epi = spm_BIDS(BIDS,'data', ... %todo: add task label to query?
-                        'sub',subID,'ses',sesDir,'run',[obj.BIDSlabel{3}(2:end) num2str(r)],'type',obj.BIDSlabel{4}(2:end));
+                        'sub',subID,'ses',sesDir,'run',[obj.BIDSlabel{3} num2str(r)],'type',obj.BIDSlabel{4});
                 else
                     epi = spm_BIDS(BIDS,'data', ...
-                        'sub',subID,'run',[obj.BIDSlabel{3}(2:end) num2str(r)],'type',obj.BIDSlabel{4}(2:end));
+                        'sub',subID,'run',[obj.BIDSlabel{3} num2str(r)],'type',obj.BIDSlabel{4});
                 end
                 
                 % (dynamically) change pre-fix in case another step was done first (e.g., to '^a' for STC)
-                run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix','^'),Inf); 
+                run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),Inf); 
                 allNiftis{r,1}  =  cellstr(run_niftis);
             end
 
@@ -266,38 +329,12 @@ classdef preprocessingObj
             matlabbatch{1}.spm.spatial.realign.estwrite.roptions.interp = 4;
             matlabbatch{1}.spm.spatial.realign.estwrite.roptions.wrap = [0 0 0];
             matlabbatch{1}.spm.spatial.realign.estwrite.roptions.mask = 1;
-            matlabbatch{1}.spm.spatial.realign.estwrite.roptions.prefix = 'r'; % add option to customize the prefix?
+            matlabbatch{1}.spm.spatial.realign.estwrite.roptions.prefix = obj.prefix.realignment;
 
             % run job
             spm('defaults','FMRI');
             spm_jobman('initcfg');
             spm_jobman('run', matlabbatch);
-
-        end
-
-        % runSlicetiming (optional)
-        function obj = runSlicetiming(obj, subID)
-            % RUNSLICETIMING Function to perform slice-timing correction
-            %   of the functional images
-            %
-            %   Input
-            %       subNr: subject ID
-            %   Output
-            %       none
-
-            %notes:
-            % - STC for TR ~ 2 s is the sweet spot and recommended. 
-            %   For TRs below 1 s, STC has not a big effect, 
-            %   and for TRs above ~3 s STC is not great (requires a lot of interpolation). 
-            % - STC for interleaved acquisition order is tricky because you have to do STC before realignment. 
-            %   STC for sequential (e.g. descending) acquisition order can be
-            %   done after realignment, unless you expect lots of motion
-            % - Note that the onsets in 1st-level GLM should be adapted to
-            %   reflect the new time-corrected TRs!
-            %   See also the SPM website: https://www.fil.ion.ucl.ac.uk/spm/docs/tutorials/fmri/preprocessing/slice_timing/
-
-            % do slice time correction
-            fprintf('<slice-time correcting %s...>\n', subID) % placeholder code
 
         end
 
