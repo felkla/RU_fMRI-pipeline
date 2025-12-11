@@ -14,6 +14,8 @@ classdef preprocessingObj
         anatLab % label for anatomical data sub directory
         fmapLab % label for field-map data sub directory
         BIDSlabel % BIDS labels
+        overwriteFiles % overwrite existing preprocessed files?
+        deleteFiles    % delete intermediate preproc files?
 
         % preprocessing steps
         steps % list of preprocessing steps
@@ -24,7 +26,6 @@ classdef preprocessingObj
         stepCoregistration % coregistration of mean EPI to T1
         stepNormalization % application of normalization parameters to EPI data
         stepSmoothing % smoothing
-        stepDeleteFiles % delete intermediate files
         preprocessingComponents % list of preprocessing steps to perform
         prefix % prefix for each preprocessing step
         currPrefix % variable to dynamically update prefix
@@ -34,7 +35,9 @@ classdef preprocessingObj
         runSel % fMRI run numbers
         nSlices % number of slices for each volume
         TR % TR of the sequence
+        refSlice % reference slice (for slice-timing correction)
         sliceTiming % timing of acquisition of each slice relative to beginning of each volume (in s)
+        epiReadoutTime % total EPI readout time (for unwarping)
 
     end
 
@@ -62,6 +65,8 @@ classdef preprocessingObj
             obj.anatLab = preprocessingVars.anatLab;
             obj.fmapLab = preprocessingVars.fmapLab;
             obj.BIDSlabel = preprocessingVars.BIDSlabel;
+            obj.overwriteFiles = preprocessingVars.overwrite;
+            obj.deleteFiles = preprocessingVars.deleteFiles;
 
             % preprocessing steps
             obj.steps = preprocessingVars.steps;
@@ -72,16 +77,18 @@ classdef preprocessingObj
             obj.stepCoregistration = preprocessingVars.stepCoregistration;
             obj.stepNormalization = preprocessingVars.stepNormalization;
             obj.stepSmoothing = preprocessingVars.stepSmoothing;
-            obj.stepDeleteFiles = preprocessingVars.stepDeleteFiles;
             obj.preprocessingComponents = preprocessingVars.preprocessingComponents;
             obj.prefix = preprocessingVars.prefix;
+            obj.currPrefix = preprocessingVars.currPrefix;
 
             % fMRI parameters
             obj.subjects = preprocessingVars.subjects;
             obj.runSel = preprocessingVars.runSel;
             obj.nSlices = preprocessingVars.nSlices;
             obj.TR = preprocessingVars.TR;
+            obj.refSlice = preprocessingVars.refSlice;
             obj.sliceTiming = preprocessingVars.sliceTiming;
+            obj.epiReadoutTime = preprocessingVars.epiReadoutTime;
 
         end
 
@@ -111,26 +118,12 @@ classdef preprocessingObj
                 sesDir = {''};
             end
 
-            % check if preprocessing directory exists 
-            % TODO: add option to re-create preprocessing directory from scratch
+            % create/overwrite preprocessing directory
             if ~exist(fullfile(obj.preRoot,subID), 'dir')
-                if isempty(sesDir{1})
-                    % if no session indicator
-                    mkdir(fullfile(obj.preRoot,subID,obj.anatLab)) % anat
-                    mkdir(fullfile(obj.preRoot,subID,obj.funcLab)) % func
-                    if ~isempty(obj.fmapLab)
-                        mkdir(fullfile(obj.preRoot,subID,obj.fmapLab)) % fmap
-                    end
-                else
-                    % if (multiple) session indicators
-                    for ses = 1:numel(sesDir)
-                        mkdir(fullfile(obj.preRoot,subID,sprintf('ses-%02d',ses),obj.anatLab)) % anat
-                        mkdir(fullfile(obj.preRoot,subID,sprintf('ses-%02d',ses),obj.funcLab)) % func
-                        if ~isempty(obj.fmapLab)
-                            mkdir(fullfile(obj.preRoot,subID,sprintf('ses-%02d',ses),obj.fmapLab)) % fmap
-                        end
-                    end
-                end
+                mkdir(fullfile(obj.preRoot,subID));
+            elseif obj.overwriteFiles
+                rmdir(fullfile(obj.preRoot,subID), 's');
+                mkdir(fullfile(obj.preRoot,subID));
             end
 
             % loop over sessions (ses-01, ses-02, etc.)
@@ -143,11 +136,8 @@ classdef preprocessingObj
                 obj.srcDir = fullfile(obj.dsRoot, subID, sesDir{ses});
                 obj.tgtDir = fullfile(obj.preRoot, subID, sesDir{ses});
 
-                % TODO: copy a working-version of BIDS data to preproc
-                % folder and use this for the preproc steps 
-                % (currently preprocessing is done inside the BIDS folder 
-                % which is not ideal since e.g. realignment adjusts the 
-                % header of the input niftis)
+                % copy source BIDS data to preproc folder
+                copyfile(obj.srcDir, obj.tgtDir);
 
                 % select preprocessing steps
                 obj.steps = obj.steps(find(obj.preprocessingComponents == true));
@@ -201,9 +191,9 @@ classdef preprocessingObj
                 end %loop steps
 
                 % delete intermediate files
-                if obj.stepDeleteFiles
+                if obj.deleteFiles
                     fprintf('deleting intermediate files...\n')
-                    obj.deleteFiles(subID)
+                    obj.runDeleteFiles(subID)
                 end
 
                 % inform user
@@ -253,19 +243,59 @@ classdef preprocessingObj
             % - Note that the onsets in 1st-level GLM should be adapted to
             %   reflect the new time-corrected TRs!
             %   See also the SPM website: https://www.fil.ion.ucl.ac.uk/spm/docs/tutorials/fmri/preprocessing/slice_timing/
-
-            % do slice time correction
-            fprintf('<slice-time correcting %s...>\n', subID) % placeholder code
             
             % some input checks
-            assert(any(~isnan(prepVars.sliceTiming)),'stepSlicetiming: Slice timings are missing!');
-            assert(prepVars.nSlices == numel(prepVars.sliceTiming), 'stepSlicetiming: Number of slices does not match number of slice timings!')
+            assert(~isnan(obj.TR),'stepSlicetiming: TR is missing!');
+            assert(~isnan(obj.nSlices),'stepSlicetiming: Number of slices is missing!');
+            assert(any(~isnan(obj.sliceTiming)),'stepSlicetiming: Slice timings are missing!');
+            assert(~isnan(obj.refSlice), 'stepSlicetiming: Reference slice is missing!');
+            assert(obj.nSlices == numel(obj.sliceTiming), 'stepSlicetiming: Number of slice timings does not match number of slices!')
+
+            % loop over runs
+            subIdx = contains(obj.subjects,subID); % index to select the correct number of runs for the subject
+            subRuns = obj.runSel{subIdx}{1};       % the second index reflects the task number - currently only works for 1 task
+            nRuns = numel(subRuns);
+
+            % get BIDS structure of data set
+            BIDS = spm_BIDS(obj.preRoot);
+            
+            % get EPIs
+            allNiftis = cell(nRuns,1);
+            for r = 1:nRuns
+                if ~isempty(sesDir)
+                    epi = spm_BIDS(BIDS,'data', ... %todo: add task label to query?
+                        'sub',subID,'ses',sesDir,'run',[obj.BIDSlabel{3} num2str(r)],'type',obj.BIDSlabel{4});
+                else
+                    epi = spm_BIDS(BIDS,'data', ...
+                        'sub',subID,'run',[obj.BIDSlabel{3} num2str(r)],'type',obj.BIDSlabel{4});
+                end
+
+                % (dynamically) change pre-fix in case another step was done first (e.g., to '^r' for realignment)
+                run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),Inf);
+                allNiftis{r,1}  =  cellstr(run_niftis);
+
+            end
+
+            % prepare spm batch
+            matlabbatch = [];
+            matlabbatch{1}.spm.temporal.st.scans    = allNiftis;
+            matlabbatch{1}.spm.temporal.st.nslices  = obj.nSlices;
+            matlabbatch{1}.spm.temporal.st.tr       = obj.TR;
+            matlabbatch{1}.spm.temporal.st.ta       = 0;
+            matlabbatch{1}.spm.temporal.st.so       = obj.sliceTiming;
+            matlabbatch{1}.spm.temporal.st.refslice = obj.refSlice;
+            matlabbatch{1}.spm.temporal.st.prefix   = obj.prefix.slicetiming;
+            
+            % run job
+            spm('defaults','FMRI');
+            spm_jobman('initcfg');
+            spm_jobman('run', matlabbatch);
 
         end
-        
+
         % runUnwarping (if no realignment)
         function obj = runUnwarping(obj, subID)
-            % RUNUNWARPING Function to compute voxel-displacement map (VDM) 
+            % RUNUNWARPING Function to compute voxel-displacement map (VDM)
             %   and unwarp + realign the EPIs (field-map correction)
             %
             %   Input
@@ -275,6 +305,10 @@ classdef preprocessingObj
 
             % do unwarping
             fprintf('<unwarping %s...>\n', subID) % placeholder code
+
+            % input checks
+            assert(obj.stepRealignment == false);
+            assert(~isnan(obj.epiReadoutTime), 'stepUnwarping: Total EPI read-out time is missing!');
 
         end
         
@@ -291,13 +325,16 @@ classdef preprocessingObj
             %   Output
             %       none
 
+            % input checks
+            assert(obj.stepUnwarping == false);
+
             % select data for all runs. Better to add separate runs as Sessions in the same module
             subIdx = contains(obj.subjects,subID); % index to select the correct number of runs for the subject
             subRuns = obj.runSel{subIdx}{1};       % the second index reflects the task number - currently only works for 1 task
             nRuns = numel(subRuns); 
             
             % get BIDS structure of data set
-            BIDS = spm_BIDS(obj.dsRoot);
+            BIDS = spm_BIDS(obj.preRoot);
 
             % get EPIs
             allNiftis = cell(nRuns,1);
@@ -422,7 +459,7 @@ classdef preprocessingObj
         end
 
         % deleteFiles
-        function deleteFiles(obj, subNr)
+        function runDeleteFiles(obj, subNr)
             % DELETEFILES Function for deleting intermediate files
             %
             %   Input

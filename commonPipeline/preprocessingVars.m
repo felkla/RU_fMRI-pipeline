@@ -13,6 +13,8 @@ classdef preprocessingVars
         anatLab % label for anatomical data sub directory
         fmapLab % label for field-map data sub directory
         BIDSlabel % BIDS labels
+        overwriteFiles % overwrite existing preproc files (true/false)
+        deleteFiles    % delete intermediate preproc files (true/false)
 
         % preprocessing steps
         steps   % list of preprocessing steps
@@ -23,16 +25,20 @@ classdef preprocessingVars
         stepCoregistration % coregistration of mean EPI to T1
         stepNormalization % application of normalization parameters to EPI data
         stepSmoothing % smoothing
-        stepDeleteFiles % delete intermediate files
         preprocessingComponents % list of preprocessing steps to perform
         prefix
+        currPrefix
 
         % fMRI parameters
         subjects % subject IDs
         runSel % fMRI run numbers
         nSlices % number of slices for each volume
         TR % TR of the sequence
+        refSlice % reference slice (for slice-timing correction)
         sliceTiming % timing of acquisition of each slice relative to beginning of each volume (in s)
+        epiReadoutTime % total epi readout time (for unwarping)
+        echoTime1 % fieldmap short echo time
+        echoTime2 % fieldmap long echo time
 
     end
 
@@ -58,6 +64,8 @@ classdef preprocessingVars
             obj.BIDSlabel{2} = ''; % BIDS file name acquisition label
             obj.BIDSlabel{3} = 'run-0'; % BIDS file name run index
             obj.BIDSlabel{4} = 'bold'; % BIDS file name modality suffix
+            obj.overwriteFiles = true; % overwrite existing preproc files?
+            obj.deleteFiles = false;    % delete intermediate preproc files?
 
             % Choose preprocessing steps
             obj.steps = {'segmentation',...
@@ -75,7 +83,6 @@ classdef preprocessingVars
             obj.stepCoregistration = true;
             obj.stepNormalization = true;
             obj.stepSmoothing = false;
-            obj.stepDeleteFiles = false;
             obj.preprocessingComponents = [obj.stepSegmentation,...
                                             obj.stepSlicetiming,...
                                             obj.stepUnwarping,...
@@ -92,13 +99,18 @@ classdef preprocessingVars
             obj.prefix.coregistration = '';
             obj.prefix.normalization = 'w';
             obj.prefix.smoothing = 's';
+            obj.currPrefix = ''; % default prefix before first preproc step
             
             % fMRI parameters - remove defaults for specific settings (and give warning for some?)
             obj.subjects = {'all'};
-            obj.runSel{1} = {1:4};  % should match example data
-            obj.nSlices = nan;      % should match example data
-            obj.TR = nan;           % should match example data
-            obj.sliceTiming = nan;  % should match example data
+            obj.runSel{1} = {1:4};  % number of functional runs per sub
+            obj.nSlices = nan;      % total number of EPI slices
+            obj.TR = nan;           % repetition time in seconds (!)
+            obj.refSlice = (obj.TR/2)*1000; % reference slice in ms (!); default = 0.5 * TR
+            obj.sliceTiming = nan;      % slice timings in ms (!)
+            obj.epiReadoutTime = nan;   % total epi readout time in ms (!)
+            obj.echoTime1 = nan;        % fieldmap short echo time in ms (!)
+            obj.echoTime2 = nan;        % fieldmap long echo time in ms (!)
         end
     end
 end
