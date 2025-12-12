@@ -65,7 +65,7 @@ classdef preprocessingObj
             obj.anatLab = preprocessingVars.anatLab;
             obj.fmapLab = preprocessingVars.fmapLab;
             obj.BIDSlabel = preprocessingVars.BIDSlabel;
-            obj.overwriteFiles = preprocessingVars.overwrite;
+            obj.overwriteFiles = preprocessingVars.overwriteFiles;
             obj.deleteFiles = preprocessingVars.deleteFiles;
 
             % preprocessing steps
@@ -105,9 +105,6 @@ classdef preprocessingObj
             %
             %   Output
             %       none
-
-            % check if minimally-required preprocessing parameters are defined
-            assert(~isnan(obj.nSlices) | ~isnan(obj.TR), 'Not all required preprocessing parameters are defined!');
             
             % select subject data
             subDir = fullfile(obj.dsRoot, subID);
@@ -118,7 +115,17 @@ classdef preprocessingObj
                 sesDir = {''};
             end
 
-            % create/overwrite preprocessing directory
+            % create preprocessing root directory
+            if ~exist(fullfile(obj.preRoot),'dir')
+                mkdir(fullfile(obj.preRoot))
+            end
+
+            % copy BIDS files to preproc dir 
+            % [dataset_description.json & participants.tsv]
+            copyfile(fullfile(obj.dsRoot, 'dataset_description.json'), fullfile(obj.preRoot, 'dataset_description.json'))
+            copyfile(fullfile(obj.dsRoot, 'participants.tsv'), fullfile(obj.preRoot, 'participants.tsv'))
+            
+            % create/overwrite subject-specific directory
             if ~exist(fullfile(obj.preRoot,subID), 'dir')
                 mkdir(fullfile(obj.preRoot,subID));
             elseif obj.overwriteFiles
@@ -160,7 +167,7 @@ classdef preprocessingObj
                             obj.runSegmentation(subID);
 
                         case 'slicetiming'
-                            obj.runSlicetiming(subID);
+                            obj.runSlicetiming(subID, sesDir{ses});
                             obj.currPrefix = obj.prefix.slicetiming;
 
                         case 'unwarping'
@@ -224,7 +231,7 @@ classdef preprocessingObj
         end
 
         % runSlicetiming (optional)
-        function obj = runSlicetiming(obj, subID)
+        function obj = runSlicetiming(obj, subID, sesDir)
             % RUNSLICETIMING Function to perform slice-timing correction
             %   of the functional images
             %
@@ -352,7 +359,7 @@ classdef preprocessingObj
                 allNiftis{r,1}  =  cellstr(run_niftis);
             end
 
-            % prepare spm batch
+            % prepare spm batch - currently SPM12 defaults
             matlabbatch = [];
             matlabbatch{1}.spm.spatial.realign.estwrite.data = allNiftis;
             matlabbatch{1}.spm.spatial.realign.estwrite.eoptions.quality = 0.9;

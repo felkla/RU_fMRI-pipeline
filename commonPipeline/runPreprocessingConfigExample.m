@@ -67,23 +67,23 @@ BIDSlabel{4} = 'bold'; % BIDS file name modality suffix
 %       6. Smoothing
 
 % Default settings for RU pipeline
-stepSegmentation = false;
-stepSlicetiming = true; % -> consider doing this *before* realignment (see büchel pipeline)
-stepUnwarping = false;
-stepRealignment = true;
-stepCoregistration = false; % -> add option to do non-linear coregistration (e.g., instead of fmap correction; see büchel pipeline)
-stepNormalization = false;
-stepSmoothing = false;
+stepSegmentation    = false;
+stepSlicetiming     = true; % -> consider doing this *before* realignment (see büchel pipeline)
+stepUnwarping       = false;
+stepRealignment     = true;
+stepCoregistration  = false; % -> add option to do non-linear coregistration (e.g., instead of fmap correction; see büchel pipeline)
+stepNormalization   = false; % do this after first-level model?
+stepSmoothing       = false; % do this after first-level model?
 
 overwriteFiles = false; % overwrite existing preproc files?
 deleteFiles = false;    % delete intermediate preproc files?
 
 %prefix
-prefix.slicetiming = 'a';
-prefix.unwarping = 'u';
-prefix.realignment = 'r';
-prefix.normalization = 'w';
-prefix.smoothing = 's';
+prefix.slicetiming      = 'a';
+prefix.unwarping        = 'u';
+prefix.realignment      = 'r';
+prefix.normalization    = 'w';
+prefix.smoothing        = 's';
 
 % Initialize preprocessing variables object
 prepVars = preprocessingVars();
@@ -96,7 +96,8 @@ prepVars.anatLab = anatLab;
 prepVars.fmapLab = fmapLab;
 prepVars.preRoot = preRoot;
 prepVars.BIDSlabel = BIDSlabel;
-prepVars.overwrite = overwriteFiles;
+prepVars.overwriteFiles = overwriteFiles;
+prepVars.deleteFiles = deleteFiles;
 
 %update steps
 prepVars.stepSegmentation = stepSegmentation;
@@ -106,7 +107,6 @@ prepVars.stepRealignment = stepRealignment;
 prepVars.stepCoregistration = stepCoregistration; % -> add option to do coregistration between two functional runs (if ppt left scanner)
 prepVars.stepNormalization = stepNormalization;
 prepVars.stepSmoothing = stepSmoothing;
-prepVars.stepDeleteFiles = deleteFiles;
 
 prepVars.preprocessingComponents = [stepSegmentation,...
                                     stepSlicetiming,...
@@ -136,6 +136,7 @@ prepVars.runSel = runSel(sub_idx); % update nr of functional runs for selected s
 % Update fMRI parameters (params currently match example dataset)
 prepVars.nSlices = 66;
 prepVars.TR = 1.975;
+prepVars.refSlice = (prepVars.TR/2)*1000;
 sliceTimings = [1.91499999998,1.85499999998,1.79499999998,1.73499999999,1.67499999999,1.61499999999,1.55499999999,1.495,1.435,1.375,1.315,...
                 1.25749999998,1.19749999998,1.13749999998,1.07749999998,1.01749999999,0.95749999999,0.89749999999,0.83749999999,0.7775,0.7175,0.6575,...
                 0.5975,0.53749999998,0.47749999998,0.41749999998,0.35999999999,0.29999999999,0.23999999999,0.17999999999,0.12,0.06, 0,...
