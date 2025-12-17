@@ -144,7 +144,9 @@ classdef preprocessingObj
                 obj.tgtDir = fullfile(obj.preRoot, subID, sesDir{ses});
 
                 % copy source BIDS data to preproc folder
-                copyfile(obj.srcDir, obj.tgtDir);
+                if ~exist(fullfile(obj.tgtDir,obj.funcLab),'dir') || (exist(fullfile(obj.tgtDir,obj.funcLab),'dir') && obj.overwriteFiles)
+                    copyfile(obj.srcDir, obj.tgtDir);
+                end
 
                 % select preprocessing steps
                 obj.steps = obj.steps(find(obj.preprocessingComponents == true));
@@ -179,7 +181,7 @@ classdef preprocessingObj
                             obj.currPrefix = obj.prefix.realignment;
 
                         case 'coregistration'
-                            obj.runCoregistration(subID);
+                            obj.runCoregistration(subID, sesDir{ses});
                             obj.currPrefix = obj.prefix.coregistration;
 
                         case 'normalization'
@@ -237,6 +239,8 @@ classdef preprocessingObj
             %
             %   Input
             %       subNr: subject ID
+            %       sesDir: directory containing anat/func data of current
+            %               session
             %   Output
             %       none
 
@@ -383,22 +387,75 @@ classdef preprocessingObj
         end
 
         % runCoregistration
-        function obj = runCoregistration(obj, subID)
-            % RUNCOREGISTRATION Function to perform coregistration of
-            %   functional images to the anatomical image
+        function obj = runCoregistration(obj, subID, sesDir)
+            % RUNCOREGISTRATION Function to perform coregistration 
+            %   (estimate, no reslicing) of functional images to the 
+            %   anatomical image.
             %
             %   Input
             %       subNr: subject ID
+            %       sesDir: directory containing anat/func data of current
+            %               session
             %   Output
             %       none
+            %
+            % notes:
+            %   Currently performs linear coregistration on the realigned
+            %   images. todo: make compatible with unwarped (fm-corrected)
+            %   images.
+            % 
+            %   The Büchel lab performs non-linear coreg instead of 
+            %   field-map correction. In that case, you need to perform
+            %   segmentation of the anatomical image (runSegmentation).
 
-            %note:
-            % The Büchel lab performs non-linear coreg using Dartel 
-            % instead of field maps. In that case, you need to perform
-            % segmentation of the anatomical image (runSegmentation).
+            % loop over runs
+            subIdx = contains(obj.subjects,subID); % index to select the correct number of runs for the subject
+            subRuns = obj.runSel{subIdx}{1};       % the second index reflects the task number - currently only works for 1 task
+            nRuns = numel(subRuns);
 
-            % do coregistration
-            fprintf('<coregistering %s...>\n', subID) % placeholder code
+            % get BIDS structure of data set
+            BIDS = spm_BIDS(obj.preRoot);
+
+            % get reference image (anatomical T1)
+            anat_image = spm_BIDS(BIDS,'data',...
+                'sub',subID,'type','T1w');
+            ref = anat_image(1); %in case there are more sessions with T1w
+
+            % get source image (mean realigned image)
+            epi = spm_BIDS(BIDS,'data',...
+                'sub',subID,'type',obj.BIDSlabel{4});
+            source = spm_file(epi,'prefix','meana'); % we need the slice-time (and field-map?) corrected mean image: (u)meanasub.nii
+
+            % get other images (EPIs)
+            other = cell(nRuns,1);
+            for r = 1:nRuns
+                if ~isempty(sesDir)
+                    epi = spm_BIDS(BIDS,'data', ... %todo: add task label to query?
+                        'sub',subID,'ses',sesDir,'run',[obj.BIDSlabel{3} num2str(r)],'type',obj.BIDSlabel{4});
+                else
+                    epi = spm_BIDS(BIDS,'data', ...
+                        'sub',subID,'run',[obj.BIDSlabel{3} num2str(r)],'type',obj.BIDSlabel{4});
+                end
+
+                % (dynamically) change pre-fix in case another step was done first (e.g., to '^r' for realignment)
+                run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),Inf);
+                other{r,1}  =  cellstr(run_niftis);
+
+            end
+
+            % prepare spm batch
+            matlabbatch{1}.spm.spatial.coreg.estimate.ref = ref;
+            matlabbatch{1}.spm.spatial.coreg.estimate.source = source;
+            matlabbatch{1}.spm.spatial.coreg.estimate.other = other;
+            matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.cost_fun = 'nmi';
+            matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.sep = [4 2];
+            matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.tol = [0.02 0.02 0.02 0.001 0.001 0.001 0.01 0.01 0.01 0.001 0.001 0.001];
+            matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.fwhm = [7 7];
+
+            % run job
+            spm('defaults','FMRI');
+            spm_jobman('initcfg');
+            spm_jobman('run', matlabbatch);
 
         end
 

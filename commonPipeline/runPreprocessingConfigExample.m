@@ -68,10 +68,10 @@ BIDSlabel{4} = 'bold'; % BIDS file name modality suffix
 
 % Default settings for RU pipeline
 stepSegmentation    = false;
-stepSlicetiming     = true; % -> consider doing this *before* realignment (see büchel pipeline)
+stepSlicetiming     = false;
 stepUnwarping       = false;
 stepRealignment     = true;
-stepCoregistration  = false; % -> add option to do non-linear coregistration (e.g., instead of fmap correction; see büchel pipeline)
+stepCoregistration  = true; % todo - add option to do non-linear coregistration (e.g., instead of fmap correction; see büchel pipeline)
 stepNormalization   = false; % do this after first-level model?
 stepSmoothing       = false; % do this after first-level model?
 
@@ -122,6 +122,7 @@ prepVars.prefix.unwarping = prefix.unwarping;
 prepVars.prefix.realignment = prefix.realignment;
 prepVars.prefix.normalization = prefix.normalization;
 prepVars.prefix.smoothing = prefix.smoothing;
+prepVars.currPrefix = prefix.slicetiming; % determines which files to use for first preprocessing step. Default = '', which takes the raw sub-00x.nii's
 
 % Select subjects to preprocess
 subs2incl = {'203'}; % should be cell array with your BIDS-compliant numbers: subs2incl = {'001','002','051'}, or 'all' to preprocess all subjects in dsRoot
@@ -133,7 +134,7 @@ end
 prepVars.subjects = allSubjects(sub_idx); % selected subjects
 prepVars.runSel = runSel(sub_idx); % update nr of functional runs for selected subjects
 
-% Update fMRI parameters (params currently match example dataset)
+% Update fMRI parameters (currently match example dataset)
 prepVars.nSlices = 66;
 prepVars.TR = 1.975;
 prepVars.refSlice = (prepVars.TR/2)*1000;
