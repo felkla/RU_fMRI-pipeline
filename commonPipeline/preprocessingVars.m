@@ -92,11 +92,9 @@ classdef preprocessingVars
                                             obj.stepSmoothing];
 
             % prefixes
-            obj.prefix.segmentation = '';
             obj.prefix.slicetiming = 'a';
             obj.prefix.unwarping = 'u';
             obj.prefix.realignment = 'r';
-            obj.prefix.coregistration = '';
             obj.prefix.normalization = 'w';
             obj.prefix.smoothing = 's';
             obj.currPrefix = ''; % default prefix before first preproc step

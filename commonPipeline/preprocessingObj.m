@@ -182,7 +182,6 @@ classdef preprocessingObj
 
                         case 'coregistration'
                             obj.runCoregistration(subID, sesDir{ses});
-                            obj.currPrefix = obj.prefix.coregistration;
 
                         case 'normalization'
                             obj.runNormalization(subID);
@@ -289,13 +288,13 @@ classdef preprocessingObj
 
             % prepare spm batch
             matlabbatch = [];
-            matlabbatch{1}.spm.temporal.st.scans    = allNiftis;
-            matlabbatch{1}.spm.temporal.st.nslices  = obj.nSlices;
-            matlabbatch{1}.spm.temporal.st.tr       = obj.TR;
-            matlabbatch{1}.spm.temporal.st.ta       = 0;
-            matlabbatch{1}.spm.temporal.st.so       = obj.sliceTiming;
+            matlabbatch{1}.spm.temporal.st.scans = allNiftis;
+            matlabbatch{1}.spm.temporal.st.nslices = obj.nSlices;
+            matlabbatch{1}.spm.temporal.st.tr = obj.TR;
+            matlabbatch{1}.spm.temporal.st.ta = 0;
+            matlabbatch{1}.spm.temporal.st.so = obj.sliceTiming;
             matlabbatch{1}.spm.temporal.st.refslice = obj.refSlice;
-            matlabbatch{1}.spm.temporal.st.prefix   = obj.prefix.slicetiming;
+            matlabbatch{1}.spm.temporal.st.prefix = obj.prefix.slicetiming;
             
             % run job
             spm('defaults','FMRI');
@@ -321,8 +320,7 @@ classdef preprocessingObj
             assert(obj.stepRealignment == false);
             assert(~isnan(obj.epiReadoutTime), 'stepUnwarping: Total EPI read-out time is missing!');
 
-        end
-        
+        end        
         
         % runRealignment (if no unwarping)
         function obj = runRealignment(obj, subID, sesDir)
@@ -425,6 +423,7 @@ classdef preprocessingObj
             epi = spm_BIDS(BIDS,'data',...
                 'sub',subID,'type',obj.BIDSlabel{4});
             source = spm_file(epi,'prefix','meana'); % we need the slice-time (and field-map?) corrected mean image: (u)meanasub.nii
+            assert(~isempty(source), 'stepCoregistration: Could not find mean image. Please run realignment/unwarping first.')
 
             % get other images (EPIs)
             other = cell(nRuns,1);
