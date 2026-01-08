@@ -54,7 +54,7 @@ classdef preprocessingVars
             % SPM12
             obj.spmPath = fullfile(parentDir,'spm12/');
             obj.dsRoot = fullfile(parentDir,'exampleData/');
-            obj.preRoot = fullfile(obj.dsRoot,'derived');
+            obj.preRoot = fullfile(obj.dsRoot,'derivatives');
             obj.srcDir = {''};
             obj.tgtDir = {''};
             obj.funcLab = 'func';

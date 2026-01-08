@@ -25,7 +25,7 @@ addpath(spmPath)
 
 % Data source- and target root directory
 dsRoot = fullfile(parentDir,'data'); %your BIDS folder
-preRoot = fullfile(dsRoot,'derived'); %where the preprocessed data will be placed
+preRoot = fullfile(dsRoot,'derivatives'); %where the preprocessed data will be placed
 funcLab = 'func'; % label for functional data sub directory
 anatLab = 'anat'; % label for anatomical data sub directory
 fmapLab = 'fmap'; % label for field-map data sub directory
@@ -71,7 +71,7 @@ stepSegmentation    = false;
 stepSlicetiming     = false;
 stepUnwarping       = false; % only if realignment == false
 stepRealignment     = true;  % only if unwarping == false
-stepCoregistration  = true;     
+stepCoregistration  = false;     
 stepNormalization   = false; 
 stepSmoothing       = false;
 
@@ -84,7 +84,7 @@ prefix.unwarping        = 'u';
 prefix.realignment      = 'r';
 prefix.normalization    = 'w';
 prefix.smoothing        = 's';
-firstPrefix = prefix.slicetiming; % determines which files to use for first preprocessing step. Default (i.e., use raw nifti's): startingPrefix = '';
+firstPrefix = prefix.slicetiming; % determines which files to use for first preprocessing step. Default (i.e., use raw nifti's): firstPrefix = '';
 
 % Define preprocessing parameters (currently match example dataset)
 nSlices = 66;
@@ -150,7 +150,7 @@ prepVars.prefix.unwarping = prefix.unwarping;
 prepVars.prefix.realignment = prefix.realignment;
 prepVars.prefix.normalization = prefix.normalization;
 prepVars.prefix.smoothing = prefix.smoothing;
-if exist('startingPrefix', 'var') && ~isempty(startingPrefix)
+if exist('firstPrefix', 'var') && ~isempty(firstPrefix)
     prepVars.currPrefix = firstPrefix;
 end
 
