@@ -281,7 +281,11 @@ classdef preprocessingObj
                 end
 
                 % (dynamically) change pre-fix in case another step was done first (e.g., to '^r' for realignment)
-                run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),Inf);
+                if isempty(obj.currPrefix)
+                    run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),Inf);
+                else
+                    run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix '.*']),Inf);
+                end
                 allNiftis{r,1}  =  cellstr(run_niftis);
 
             end
@@ -357,7 +361,11 @@ classdef preprocessingObj
                 end
                 
                 % (dynamically) change pre-fix in case another step was done first (e.g., to '^a' for STC)
-                run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),Inf); 
+                if isempty(obj.currPrefix)
+                    run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),Inf);
+                else
+                    run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix '.*']),Inf);
+                end
                 allNiftis{r,1}  =  cellstr(run_niftis);
             end
 
@@ -423,10 +431,12 @@ classdef preprocessingObj
             epi = spm_BIDS(BIDS,'data',...
                 'sub',subID,'type',obj.BIDSlabel{4});
             source = spm_file(epi,'prefix','meana'); % we need the slice-time (and field-map?) corrected mean image: (u)meanasub.nii
+            source = source(1); % in case of multiple runs
+            sourceDir = spm_file(source,'path');
             assert(~isempty(source), 'stepCoregistration: Could not find mean image. Please run realignment/unwarping first.')
 
             % get other images (EPIs)
-            other = cell(nRuns,1);
+            all_niftis = [];
             for r = 1:nRuns
                 if ~isempty(sesDir)
                     epi = spm_BIDS(BIDS,'data', ... %todo: add task label to query?
@@ -437,12 +447,18 @@ classdef preprocessingObj
                 end
 
                 % (dynamically) change pre-fix in case another step was done first (e.g., to '^r' for realignment)
-                run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),Inf);
-                other{r,1}  =  cellstr(run_niftis);
+                if isempty(obj.currPrefix)
+                    run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),Inf);
+                else
+                    run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix '.*']),Inf);
+                end
+                all_niftis = char(all_niftis, run_niftis);
+                % all_niftis = strvcat(all_niftis, run_niftis);
+                other = cellstr(all_niftis(2:end,:));
 
             end
 
-            % prepare spm batch
+            % prepare spm batch - coregistration
             matlabbatch{1}.spm.spatial.coreg.estimate.ref = ref;
             matlabbatch{1}.spm.spatial.coreg.estimate.source = source;
             matlabbatch{1}.spm.spatial.coreg.estimate.other = other;
@@ -450,6 +466,13 @@ classdef preprocessingObj
             matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.sep = [4 2];
             matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.tol = [0.02 0.02 0.02 0.001 0.001 0.001 0.01 0.01 0.01 0.001 0.001 0.001];
             matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.fwhm = [7 7];
+
+            % prepare spm batch - new co-registered mean image
+            matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.files = source; % rename (u)meana file to cmeana now that it is coregistered
+            matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.moveto = sourceDir; % same dir
+            matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.patrep(1).pattern = 'meana';
+            matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.patrep(1).repl = 'cmeana';
+            matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.unique = false;
 
             % run job
             spm('defaults','FMRI');

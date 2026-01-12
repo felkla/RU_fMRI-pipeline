@@ -46,7 +46,7 @@ for i = 1:length(allSubjects)
 end
 assert(numel(allSubjects) == numel(runSel), 'Length of subject- and run lists should match!')
 
-% BIDS format file name part labels - do we need the underscores?
+% BIDS format file name part labels
 BIDSlabel{1} = {'task-PT'}; % BIDS file name task label: BIDSlabel{1} = {'task1';'task2')
 BIDSlabel{2} = ''; % BIDS file name acquisition label
 BIDSlabel{3} = 'run-0'; % BIDS file name run index
@@ -55,12 +55,12 @@ BIDSlabel{4} = 'bold'; % BIDS file name modality suffix
 %% Select preprocessing steps and settings
 % Change the settings in this section to accomodate your specific 
 % project/sequence/pipeline
+%   0. Segmentation/Normalization of T1 images              (optional)
 %   1. Slice-timing correction
 %   2. Unwarping/realignment   
 %   3. Coregistration of mean EPI to T1
-%   4. Segmentation/Normalization of T1 images              (optional)
-%   5. Application of normalization parameters to EPI data  (optional)
-%   6. Smoothing                                            (optional)
+%   4. Normalization of EPI data                            (optional?)
+%   5. Smoothing                                            (optional)
 
 % Select subjects to preprocess
 % 'subs2incl' should be cell array with your BIDS-compliant numbers: subs2incl = {'001','002','051'}, or 'all' to preprocess all subjects in dsRoot
@@ -70,8 +70,8 @@ subs2incl = {'203'};
 stepSegmentation    = false;
 stepSlicetiming     = false;
 stepUnwarping       = false; % only if realignment == false
-stepRealignment     = true;  % only if unwarping == false
-stepCoregistration  = false;     
+stepRealignment     = false; % only if unwarping == false
+stepCoregistration  = true;     
 stepNormalization   = false; 
 stepSmoothing       = false;
 
@@ -84,7 +84,7 @@ prefix.unwarping        = 'u';
 prefix.realignment      = 'r';
 prefix.normalization    = 'w';
 prefix.smoothing        = 's';
-firstPrefix = prefix.slicetiming; % determines which files to use for first preprocessing step. Default (i.e., use raw nifti's): firstPrefix = '';
+% firstPrefix = prefix.realignment; % determines which files to use for first preprocessing step. Default (i.e., use raw nifti's): firstPrefix = '';
 
 % Define preprocessing parameters (currently match example dataset)
 nSlices = 66;
