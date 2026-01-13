@@ -40,6 +40,7 @@ classdef preprocessingVars
         echoTime1 % fieldmap short echo time
         echoTime2 % fieldmap long echo time
         voxelSize % EPI voxel size (used for normalization)
+        smoothingKernel % FWHM of smoothing kernel in mm
 
     end
 
@@ -112,6 +113,7 @@ classdef preprocessingVars
             obj.echoTime1 = nan;        % fieldmap short echo time in ms (!)
             obj.echoTime2 = nan;        % fieldmap long echo time in ms (!)
             obj.voxelSize = nan;        % [x,y,z] EPI voxel size in mm (for normalization)
+            obj.smoothingKernel = nan;  % [x,y,z] FWHM smoothing kernel in mm
         end
     end
 end

@@ -38,7 +38,8 @@ classdef preprocessingObj
         refSlice % reference slice (for slice-timing correction)
         sliceTiming % timing of acquisition of each slice relative to beginning of each volume (in s)
         epiReadoutTime % total EPI readout time (for unwarping)
-        voxelSize % [x,y,z] EPI voxel size in mm (for normalization)
+        voxelSize % [x,y,z] EPI voxel size in mm (for normalization
+        smoothingKernel % [x,y,z] FWHM smoothing kernel in mm
 
     end
 
@@ -90,6 +91,8 @@ classdef preprocessingObj
             obj.refSlice = preprocessingVars.refSlice;
             obj.sliceTiming = preprocessingVars.sliceTiming;
             obj.epiReadoutTime = preprocessingVars.epiReadoutTime;
+            obj.voxelSize = preprocessingVars.voxelSize;
+            obj.smoothingKernel = preprocessingVars.smoothingKernel;
 
         end
 
@@ -191,7 +194,7 @@ classdef preprocessingObj
                             obj.currPrefix = obj.prefix.normalization;
 
                         case 'smoothing'
-                            obj.runSmoothing(subID);
+                            obj.runSmoothing(subID, sesDir{ses});
                             obj.currPrefix = obj.prefix.smoothing;
 
                     end %switch steps
@@ -258,7 +261,7 @@ classdef preprocessingObj
             BIDS = spm_BIDS(obj.preRoot);
             
             % get EPIs
-            allNiftis = cell(nRuns,1);
+            allNiftis = cell(nRuns,1); % we add separate runs as Sessions in the same module
             for r = 1:nRuns
                 if ~isempty(sesDir)
                     epi = spm_BIDS(BIDS,'data', ... %todo: add task label to query?
@@ -270,11 +273,11 @@ classdef preprocessingObj
 
                 % (dynamically) change pre-fix in case another step was done first (e.g., to '^r' for realignment)
                 if isempty(obj.currPrefix)
-                    run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),Inf);
+                    runNiftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),Inf);
                 else
-                    run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix '.*']),Inf);
+                    runNiftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix '.*']),Inf);
                 end
-                allNiftis{r,1}  =  cellstr(run_niftis);
+                allNiftis{r,1}  =  cellstr(runNiftis);
 
             end
 
@@ -329,7 +332,7 @@ classdef preprocessingObj
             % input checks
             assert(obj.stepUnwarping == false);
 
-            % select data for all runs. Better to add separate runs as Sessions in the same module
+            % select data for all runs
             subIdx = contains(obj.subjects,subID); % index to select the correct number of runs for the subject
             subRuns = obj.runSel{subIdx}{1};       % the second index reflects the task number - currently only works for 1 task
             nRuns = numel(subRuns); 
@@ -338,7 +341,7 @@ classdef preprocessingObj
             BIDS = spm_BIDS(obj.preRoot);
 
             % get EPIs
-            allNiftis = cell(nRuns,1);
+            allNiftis = cell(nRuns,1); % we add separate runs as Sessions in the same module
             for r = 1:nRuns
                 if ~isempty(sesDir)
                     epi = spm_BIDS(BIDS,'data', ... %todo: add task label to query?
@@ -350,14 +353,14 @@ classdef preprocessingObj
                 
                 % (dynamically) change pre-fix in case another step was done first (e.g., to '^a' for STC)
                 if isempty(obj.currPrefix)
-                    run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),Inf);
+                    runNiftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),Inf);
                 else
-                    run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix '.*']),Inf);
+                    runNiftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix '.*']),Inf);
                 end
-                allNiftis{r,1}  =  cellstr(run_niftis);
+                allNiftis{r,1}  =  cellstr(runNiftis);
             end
 
-            % prepare spm batch - currently SPM12 defaults
+            % prepare spm batch
             matlabbatch = [];
             matlabbatch{1}.spm.spatial.realign.estwrite.data = allNiftis;
             matlabbatch{1}.spm.spatial.realign.estwrite.eoptions.quality = 0.9;
@@ -399,31 +402,30 @@ classdef preprocessingObj
             %   images.
             % 
             %   The Büchel lab performs non-linear coreg instead of 
-            %   field-map correction. In that case, you need to perform
-            %   segmentation of the anatomical image (runSegmentation).
+            %   field-map correction.
 
             % get BIDS structure of data set
             BIDS = spm_BIDS(obj.preRoot);
 
             % get reference image (anatomical T1)
-            anat_image = spm_BIDS(BIDS,'data',...
+            anat = spm_BIDS(BIDS,'data',...
                 'sub',subID,'type','T1w');
-            ref = anat_image(1); %in case there are more sessions with T1w
+            refIma = anat(1); %in case there are more sessions with T1w
 
             % get source image (mean realigned image)
             epi = spm_BIDS(BIDS,'data',...
                 'sub',subID,'type',obj.BIDSlabel{4});
-            source = spm_file(epi,'prefix','meana'); % we need the slice-time (and field-map?) corrected mean image: (u)meanasub.nii
-            source = source(1); % in case of multiple runs
-            sourceDir = spm_file(source,'path');
-            assert(~isempty(source), 'stepCoregistration: Could not find mean image. Please run realignment/unwarping first.')
+            meanIma = spm_file(epi,'prefix','meana'); % we need the slice-time (and field-map?) corrected mean image: (u)meanasub.nii
+            sourceIma = meanIma(1); % in case of multiple runs
+            assert(exist(sourceIma{1}, 'file'), 'stepCoregistration: Could not find mean realigned image. Please run realignment first.')
+            sourceDir = spm_file(sourceIma,'path');
 
-            % get other images (EPIs)
+            % get other images (i.e., all EPIs across runs)
             subIdx = contains(obj.subjects,subID); % index to select the correct number of runs for the subject
             subRuns = obj.runSel{subIdx}{1};       % the second index reflects the task number - currently only works for 1 task
             nRuns = numel(subRuns);
 
-            all_niftis = [];
+            allNiftis = [];
             for r = 1:nRuns
                 if ~isempty(sesDir)
                     epi = spm_BIDS(BIDS,'data', ... %todo: add task label to query?
@@ -435,27 +437,27 @@ classdef preprocessingObj
 
                 % (dynamically) change pre-fix in case another step was done first (e.g., to '^r' for realignment)
                 if isempty(obj.currPrefix)
-                    run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),Inf);
+                    runNiftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),Inf);
                 else
-                    run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix '.*']),Inf);
+                    runNiftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix '.*']),Inf);
                 end
-                all_niftis = char(all_niftis, run_niftis);
+                allNiftis = char(allNiftis, runNiftis);
 
             end
             
-            other = cellstr(all_niftis(2:end,:));
+            allNiftis = cellstr(allNiftis(2:end,:));
 
             % prepare spm batch - coregistration
-            matlabbatch{1}.spm.spatial.coreg.estimate.ref = ref;
-            matlabbatch{1}.spm.spatial.coreg.estimate.source = source;
-            matlabbatch{1}.spm.spatial.coreg.estimate.other = other;
+            matlabbatch{1}.spm.spatial.coreg.estimate.ref = refIma;
+            matlabbatch{1}.spm.spatial.coreg.estimate.source = sourceIma;
+            matlabbatch{1}.spm.spatial.coreg.estimate.other = allNiftis;
             matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.cost_fun = 'nmi';
             matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.sep = [4 2];
             matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.tol = [0.02 0.02 0.02 0.001 0.001 0.001 0.01 0.01 0.01 0.001 0.001 0.001];
             matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.fwhm = [7 7];
 
             % prepare spm batch - new co-registered mean image
-            matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.files = source; % rename (u)meana file to cmeana now that it is coregistered
+            matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.files = sourceIma; % rename (u)meana file to cmeana now that it is coregistered
             matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.moveto = sourceDir; % same dir
             matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.patrep(1).pattern = 'meana';
             matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.patrep(1).repl = [obj.prefix.coregistration, 'meana'];
@@ -482,12 +484,12 @@ classdef preprocessingObj
             BIDS = spm_BIDS(obj.preRoot);
 
             % get anatomical image (T1)
-            anat_image = spm_BIDS(BIDS,'data',...
+            anat = spm_BIDS(BIDS,'data',...
                 'sub',subID,'type','T1w');
-            anat_image = anat_image(1); %in case there are more sessions with T1w
+            anatIma = anat(1); %in case there are more sessions with T1w
 
             % prepare spm batch
-            matlabbatch{1}.spm.spatial.preproc.channel.vols = anat_image;
+            matlabbatch{1}.spm.spatial.preproc.channel.vols = anatIma;
             matlabbatch{1}.spm.spatial.preproc.channel.biasreg = 0.001;
             matlabbatch{1}.spm.spatial.preproc.channel.biasfwhm = 60;
             matlabbatch{1}.spm.spatial.preproc.channel.write = [0 1];
@@ -541,21 +543,29 @@ classdef preprocessingObj
             %
             %   Input
             %       subNr: subject ID
+            %       sesDir: directory containing anat/func data of current
+            %               session
             %   Output
             %       none
             
+            % input checks
+            assert(~isnan(obj.voxelSize), 'stepNormalization: EPI voxel size is missing!')
+            
+            % get BIDS structure of data set
+            BIDS = spm_BIDS(obj.preRoot);
+            
             % get deformation field for normalization parameters
-            anat_image = spm_BIDS(BIDS,'data',...
+            anat = spm_BIDS(BIDS,'data',...
                 'sub',subID,'type','T1w');
-            def = spm_file(anat_image,'prefix','y'); % we need the deformation field
-            assert(~isempty(def), 'stepNormalization: Could not find deformation field image. Please run segmentation first.')
+            defIma = spm_file(anat,'prefix','y_'); % we need the deformation field
+            assert(exist(defIma{1}, 'file'), 'stepNormalization: Could not find deformation field image. Please run segmentation first.')
 
-            % get EPI images to normalize
+            % get EPI images across runs to normalize
             subIdx = contains(obj.subjects,subID); % index to select the correct number of runs for the subject
             subRuns = obj.runSel{subIdx}{1};       % the second index reflects the task number - currently only works for 1 task
             nRuns = numel(subRuns);
 
-            all_niftis = [];
+            allNiftis = [];
             for r = 1:nRuns
                 if ~isempty(sesDir)
                     epi = spm_BIDS(BIDS,'data', ... %todo: add task label to query?
@@ -565,26 +575,31 @@ classdef preprocessingObj
                         'sub',subID,'run',[obj.BIDSlabel{3} num2str(r)],'type',obj.BIDSlabel{4});
                 end
 
-                % (dynamically) change pre-fix in case another step was done first (e.g., to '^r' for realignment)
-                if isempty(obj.currPrefix)
-                    run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),Inf);
-                else
-                    run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix '.*']),Inf);
-                end
-                all_niftis = char(all_niftis, run_niftis);
+                % these need to be the *coregistered* realigned EPIs
+                runNiftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.prefix.realignment '.*']),Inf);
+                allNiftis = char(allNiftis, runNiftis);
 
             end
+            
+            allNiftis = cellstr(allNiftis(2:end,:));
 
-            EPIs = cellstr(all_niftis(2:end,:));
+            % check if coregistration has been done
+            epi = spm_BIDS(BIDS,'data',...
+                'sub',subID,'type',obj.BIDSlabel{4});
+            meanIma = spm_file(epi,'prefix',[obj.prefix.coregistration, 'meana']); 
+            meanIma = meanIma(1);
+            assert(exist(meanIma{1}, 'file'), 'stepNormalization: Images have not coregistered. Please run coregistration first.')
             
             % prepare spm batch
             matlabbatch = [];
-            matlabbatch{1}.spm.spatial.normalise.write.subj.def = def;
-            matlabbatch{1}.spm.spatial.normalise.write.subj.resample = EPIs;
+            matlabbatch{1}.spm.spatial.normalise.write.subj.def = defIma;
+            matlabbatch{1}.spm.spatial.normalise.write.subj.resample = allNiftis;
             matlabbatch{1}.spm.spatial.normalise.write.woptions.bb = [-78 -112 -70;78 76 85];
             matlabbatch{1}.spm.spatial.normalise.write.woptions.vox = obj.voxelSize;
             matlabbatch{1}.spm.spatial.normalise.write.woptions.interp = 4;
             matlabbatch{1}.spm.spatial.normalise.write.woptions.prefix = obj.prefix.normalization;
+
+            %todo: add normalization of c1 - c5 segments?
 
             % run job
             spm('defaults','FMRI');
@@ -594,17 +609,62 @@ classdef preprocessingObj
         end
 
         % runSmoothing (optional)
-        function obj = runSmoothing(obj, subID)
+        function obj = runSmoothing(obj, subID, sesDir)
             % RUNSMOOTHING Function to perform spatial smoothing of
             %   functional images
             %
             %   Input
             %       subNr: subject ID
+            %       sesDir: directory containing func data of current
+            %               session
             %   Output
             %       none
+            
+            % input checks
+            assert(all(~isnan(obj.smoothingKernel)), 'stepSmoothing: Smoothing kernel size is missing!')
+            
+            % select data for all runs
+            subIdx = contains(obj.subjects,subID); % index to select the correct number of runs for the subject
+            subRuns = obj.runSel{subIdx}{1};       % the second index reflects the task number - currently only works for 1 task
+            nRuns = numel(subRuns); 
+            
+            % get BIDS structure of data set
+            BIDS = spm_BIDS(obj.preRoot);
 
-            % do smoothing
-            fprintf('<smoothing %s...>\n', subID) % placeholder code
+            % get EPIs
+            allNiftis = [];
+            for r = 1:nRuns
+                if ~isempty(sesDir)
+                    epi = spm_BIDS(BIDS,'data', ... %todo: add task label to query?
+                        'sub',subID,'ses',sesDir,'run',[obj.BIDSlabel{3} num2str(r)],'type',obj.BIDSlabel{4});
+                else
+                    epi = spm_BIDS(BIDS,'data', ...
+                        'sub',subID,'run',[obj.BIDSlabel{3} num2str(r)],'type',obj.BIDSlabel{4});
+                end
+                
+                % (dynamically) change pre-fix in case another step was done first (e.g., to '^a' for STC)
+                if isempty(obj.currPrefix)
+                    runNiftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),Inf);
+                else
+                    runNiftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix '.*']),Inf);
+                end
+                allNiftis = char(allNiftis, runNiftis);
+
+            end
+
+            allNiftis = cellstr(allNiftis(2:end,:));
+
+            % prepare spm batch
+            matlabbatch{1}.spm.spatial.smooth.data = allNiftis;
+            matlabbatch{1}.spm.spatial.smooth.fwhm = obj.smoothingKernel;
+            matlabbatch{1}.spm.spatial.smooth.dtype = 0;
+            matlabbatch{1}.spm.spatial.smooth.im = 0;
+            matlabbatch{1}.spm.spatial.smooth.prefix = obj.prefix.smoothing;
+
+            % run job
+            spm('defaults','FMRI');
+            spm_jobman('initcfg');
+            spm_jobman('run', matlabbatch);
 
         end
 

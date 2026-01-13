@@ -58,7 +58,7 @@ BIDSlabel{4} = 'bold'; % BIDS file name modality suffix
 %   1. Slice-timing correction
 %   2. Unwarping/realignment   
 %   3. Coregistration of mean EPI to T1
-%   4. Segmentation T1 image                                (optional)
+%   4. Segmentation T1 image                                (optional?)
 %   5. Normalization of EPI data                            (optional?)
 %   6. Smoothing                                            (optional)
 
@@ -71,9 +71,9 @@ stepSlicetiming     = false;
 stepUnwarping       = false; % only if realignment == false
 stepRealignment     = false; % only if unwarping == false
 stepCoregistration  = false;     
-stepSegmentation    = true;
+stepSegmentation    = false;
 stepNormalization   = false; 
-stepSmoothing       = false;
+stepSmoothing       = true;
 
 overwriteFiles = false; % overwrite existing preproc files?
 deleteFiles = false;    % delete intermediate preproc files?
@@ -85,7 +85,7 @@ prefix.realignment      = 'r';
 prefix.coregistration   = 'c'; % only used for mean image and if reslicing EPIs
 prefix.normalization    = 'w';
 prefix.smoothing        = 's';
-firstPrefix = prefix.realignment; % determines which files to use for first preprocessing step. Default (i.e., use raw nifti's): firstPrefix = '';
+firstPrefix = prefix.normalization; % determines which files to use for first preprocessing step. Default (i.e., use raw nifti's): firstPrefix = '';
 
 % Define preprocessing parameters (currently match example dataset)
 nSlices = 66;
@@ -98,7 +98,8 @@ sliceTimings = [1.91499999998,1.85499999998,1.79499999998,1.73499999999,1.674999
                 1.25749999998,1.19749999998,1.13749999998,1.07749999998,1.01749999999,0.95749999999,0.89749999999,0.83749999999,0.7775,0.7175,0.6575,...
                 0.5975,0.53749999998,0.47749999998,0.41749999998,0.35999999999,0.29999999999,0.23999999999,0.17999999999,0.12,0.06,0]; % in seconds
 epiReadoutTime = 0.03359989248034406; % in seconds
-voxelSize = [2, 2, 2]; % [x,y,z,] EPI voxel size in mm
+voxelSize = [2, 2, 2];          % [x,y,z] EPI voxel size in mm
+smoothingKernel = [5, 5, 5];    % [x,y,z] FWHM of smoothing kernel (in mm)
 
 %% Apply settings to preprocessing variables object
 % Don't change stuff in this section unless you know what you're doing
@@ -163,6 +164,7 @@ prepVars.refSlice = refSlice;
 prepVars.sliceTiming = round(sliceTimings*1000); % convert to ms
 prepVars.epiReadoutTime = round(epiReadoutTime*1000); % convert to ms
 prepVars.voxelSize = voxelSize;
+prepVars.smoothingKernel = smoothingKernel;
 
 %% Run preprocessing 
 % Initialize preprocessing object
