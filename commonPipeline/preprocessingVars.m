@@ -18,11 +18,11 @@ classdef preprocessingVars
 
         % preprocessing steps
         steps   % list of preprocessing steps
-        stepSegmentation % segmentation/Normalization of T1 images
         stepSlicetiming % slicetiming correction
         stepUnwarping % unwarping (fmap correction)
         stepRealignment % realignment
         stepCoregistration % coregistration of mean EPI to T1
+        stepSegmentation % segmentation of T1 image
         stepNormalization % application of normalization parameters to EPI data
         stepSmoothing % smoothing
         preprocessingComponents % list of preprocessing steps to perform
@@ -39,6 +39,7 @@ classdef preprocessingVars
         epiReadoutTime % total epi readout time (for unwarping)
         echoTime1 % fieldmap short echo time
         echoTime2 % fieldmap long echo time
+        voxelSize % EPI voxel size (used for normalization)
 
     end
 
@@ -68,26 +69,26 @@ classdef preprocessingVars
             obj.deleteFiles = false;    % delete intermediate preproc files?
 
             % Choose preprocessing steps
-            obj.steps = {'segmentation',...
-                        'slicetiming',...    
+            obj.steps = {'slicetiming',...    
                         'unwarping',...
                         'realignment',...
                         'coregistration',...
+                        'segmentation',...
                         'normalization',...
                         'smoothing'};
 
-            obj.stepSegmentation = false;
-            obj.stepSlicetiming = false;
+            obj.stepSlicetiming = true;
             obj.stepUnwarping = false;
             obj.stepRealignment = true;
             obj.stepCoregistration = true;
+            obj.stepSegmentation = true;
             obj.stepNormalization = true;
             obj.stepSmoothing = false;
-            obj.preprocessingComponents = [obj.stepSegmentation,...
-                                            obj.stepSlicetiming,...
+            obj.preprocessingComponents = [obj.stepSlicetiming,...
                                             obj.stepUnwarping,...
                                             obj.stepRealignment,...
                                             obj.stepCoregistration,...
+                                            obj.stepSegmentation,...
                                             obj.stepNormalization,...
                                             obj.stepSmoothing];
 
@@ -95,6 +96,7 @@ classdef preprocessingVars
             obj.prefix.slicetiming = 'a';
             obj.prefix.unwarping = 'u';
             obj.prefix.realignment = 'r';
+            obj.prefix.coregistration = 'c';
             obj.prefix.normalization = 'w';
             obj.prefix.smoothing = 's';
             obj.currPrefix = ''; % default prefix before first preproc step
@@ -109,6 +111,7 @@ classdef preprocessingVars
             obj.epiReadoutTime = nan;   % total epi readout time in ms (!)
             obj.echoTime1 = nan;        % fieldmap short echo time in ms (!)
             obj.echoTime2 = nan;        % fieldmap long echo time in ms (!)
+            obj.voxelSize = nan;        % [x,y,z] EPI voxel size in mm (for normalization)
         end
     end
 end

@@ -55,23 +55,23 @@ BIDSlabel{4} = 'bold'; % BIDS file name modality suffix
 %% Select preprocessing steps and settings
 % Change the settings in this section to accomodate your specific 
 % project/sequence/pipeline
-%   0. Segmentation/Normalization of T1 images              (optional)
 %   1. Slice-timing correction
 %   2. Unwarping/realignment   
 %   3. Coregistration of mean EPI to T1
-%   4. Normalization of EPI data                            (optional?)
-%   5. Smoothing                                            (optional)
+%   4. Segmentation T1 image                                (optional)
+%   5. Normalization of EPI data                            (optional?)
+%   6. Smoothing                                            (optional)
 
 % Select subjects to preprocess
 % 'subs2incl' should be cell array with your BIDS-compliant numbers: subs2incl = {'001','002','051'}, or 'all' to preprocess all subjects in dsRoot
 subs2incl = {'203'};
 
 % Select which preprocessing steps to perform
-stepSegmentation    = false;
 stepSlicetiming     = false;
 stepUnwarping       = false; % only if realignment == false
 stepRealignment     = false; % only if unwarping == false
-stepCoregistration  = true;     
+stepCoregistration  = false;     
+stepSegmentation    = true;
 stepNormalization   = false; 
 stepSmoothing       = false;
 
@@ -82,9 +82,10 @@ deleteFiles = false;    % delete intermediate preproc files?
 prefix.slicetiming      = 'a';
 prefix.unwarping        = 'u';
 prefix.realignment      = 'r';
+prefix.coregistration   = 'c'; % only used for mean image and if reslicing EPIs
 prefix.normalization    = 'w';
 prefix.smoothing        = 's';
-% firstPrefix = prefix.realignment; % determines which files to use for first preprocessing step. Default (i.e., use raw nifti's): firstPrefix = '';
+firstPrefix = prefix.realignment; % determines which files to use for first preprocessing step. Default (i.e., use raw nifti's): firstPrefix = '';
 
 % Define preprocessing parameters (currently match example dataset)
 nSlices = 66;
@@ -97,6 +98,7 @@ sliceTimings = [1.91499999998,1.85499999998,1.79499999998,1.73499999999,1.674999
                 1.25749999998,1.19749999998,1.13749999998,1.07749999998,1.01749999999,0.95749999999,0.89749999999,0.83749999999,0.7775,0.7175,0.6575,...
                 0.5975,0.53749999998,0.47749999998,0.41749999998,0.35999999999,0.29999999999,0.23999999999,0.17999999999,0.12,0.06,0]; % in seconds
 epiReadoutTime = 0.03359989248034406; % in seconds
+voxelSize = [2, 2, 2]; % [x,y,z,] EPI voxel size in mm
 
 %% Apply settings to preprocessing variables object
 % Don't change stuff in this section unless you know what you're doing
@@ -125,22 +127,22 @@ prepVars.subjects = allSubjects(sub_idx); % selected subjects
 prepVars.runSel = runSel(sub_idx); % update nr of functional runs for selected subjects
 
 % Update steps
-prepVars.stepSegmentation = stepSegmentation;
 prepVars.stepSlicetiming = stepSlicetiming;
 prepVars.stepUnwarping = stepUnwarping;
 prepVars.stepRealignment = stepRealignment;
 prepVars.stepCoregistration = stepCoregistration;
+prepVars.stepSegmentation = stepSegmentation;
 prepVars.stepNormalization = stepNormalization;
 prepVars.stepSmoothing = stepSmoothing;
 %todo - add option to do coregistration between two functional runs (if ppt left scanner in-between functional runs)
 %todo - add option to do non-linear coregistration (e.g., instead of fmap correction; see büchel pipeline)
 
 % Order of preprocessing steps
-prepVars.preprocessingComponents = [stepSegmentation,...
-                                    stepSlicetiming,...
+prepVars.preprocessingComponents = [stepSlicetiming,...
                                     stepUnwarping,...
                                     stepRealignment,...
                                     stepCoregistration,...
+                                    stepSegmentation,...
                                     stepNormalization,...
                                     stepSmoothing];
 
@@ -160,6 +162,7 @@ prepVars.TR = TR;
 prepVars.refSlice = refSlice;
 prepVars.sliceTiming = round(sliceTimings*1000); % convert to ms
 prepVars.epiReadoutTime = round(epiReadoutTime*1000); % convert to ms
+prepVars.voxelSize = voxelSize;
 
 %% Run preprocessing 
 % Initialize preprocessing object

@@ -5,7 +5,7 @@ classdef preprocessingObj
     properties
 
         % paths and directories
-        spmPath % SPM patch
+        spmPath % SPM path
         dsRoot % data source root directory
         preRoot % data target root directory
         srcDir % session-specific source directory
@@ -19,11 +19,11 @@ classdef preprocessingObj
 
         % preprocessing steps
         steps % list of preprocessing steps
-        stepSegmentation % segmentation/Normalization of T1 images
         stepSlicetiming % slicetiming correction
         stepUnwarping % unwarping (fmap correction)
         stepRealignment % realignment
         stepCoregistration % coregistration of mean EPI to T1
+        stepSegmentation % segmentation of T1 images
         stepNormalization % application of normalization parameters to EPI data
         stepSmoothing % smoothing
         preprocessingComponents % list of preprocessing steps to perform
@@ -38,6 +38,7 @@ classdef preprocessingObj
         refSlice % reference slice (for slice-timing correction)
         sliceTiming % timing of acquisition of each slice relative to beginning of each volume (in s)
         epiReadoutTime % total EPI readout time (for unwarping)
+        voxelSize % [x,y,z] EPI voxel size in mm (for normalization)
 
     end
 
@@ -70,11 +71,11 @@ classdef preprocessingObj
 
             % preprocessing steps
             obj.steps = preprocessingVars.steps;
-            obj.stepSegmentation = preprocessingVars.stepSegmentation;
             obj.stepSlicetiming = preprocessingVars.stepSlicetiming;
             obj.stepUnwarping = preprocessingVars.stepUnwarping;
             obj.stepRealignment = preprocessingVars.stepRealignment;
             obj.stepCoregistration = preprocessingVars.stepCoregistration;
+            obj.stepSegmentation = preprocessingVars.stepSegmentation;
             obj.stepNormalization = preprocessingVars.stepNormalization;
             obj.stepSmoothing = preprocessingVars.stepSmoothing;
             obj.preprocessingComponents = preprocessingVars.preprocessingComponents;
@@ -165,9 +166,6 @@ classdef preprocessingObj
 
                     switch obj.steps{st}
 
-                        case 'segmentation'
-                            obj.runSegmentation(subID);
-
                         case 'slicetiming'
                             obj.runSlicetiming(subID, sesDir{ses});
                             obj.currPrefix = obj.prefix.slicetiming;
@@ -182,9 +180,14 @@ classdef preprocessingObj
 
                         case 'coregistration'
                             obj.runCoregistration(subID, sesDir{ses});
+                            % no prefix; todo - unless also reslicing.
+
+                        case 'segmentation'
+                            obj.runSegmentation(subID);
+                            % no prefix necessary
 
                         case 'normalization'
-                            obj.runNormalization(subID);
+                            obj.runNormalization(subID, sesDir{ses});
                             obj.currPrefix = obj.prefix.normalization;
 
                         case 'smoothing'
@@ -215,21 +218,6 @@ classdef preprocessingObj
         % -------------------
         % Separate functions for each step that gets called in
         % subject-level processing function:
-
-        % runSegmentation (optional)
-        function obj = runSegmentation(obj, subID)
-            % RUNSEGMENTATION Function to perform segmentation and
-            %   normalization of the anatomical image
-            %
-            %   Input
-            %       subNr: subject ID
-            %   Output
-            %       none
-
-            % do segmentation
-            fprintf('<segmenting %s...>\n', subID) % placeholder code
-
-        end
 
         % runSlicetiming (optional)
         function obj = runSlicetiming(obj, subID, sesDir)
@@ -414,11 +402,6 @@ classdef preprocessingObj
             %   field-map correction. In that case, you need to perform
             %   segmentation of the anatomical image (runSegmentation).
 
-            % loop over runs
-            subIdx = contains(obj.subjects,subID); % index to select the correct number of runs for the subject
-            subRuns = obj.runSel{subIdx}{1};       % the second index reflects the task number - currently only works for 1 task
-            nRuns = numel(subRuns);
-
             % get BIDS structure of data set
             BIDS = spm_BIDS(obj.preRoot);
 
@@ -436,6 +419,10 @@ classdef preprocessingObj
             assert(~isempty(source), 'stepCoregistration: Could not find mean image. Please run realignment/unwarping first.')
 
             % get other images (EPIs)
+            subIdx = contains(obj.subjects,subID); % index to select the correct number of runs for the subject
+            subRuns = obj.runSel{subIdx}{1};       % the second index reflects the task number - currently only works for 1 task
+            nRuns = numel(subRuns);
+
             all_niftis = [];
             for r = 1:nRuns
                 if ~isempty(sesDir)
@@ -453,10 +440,10 @@ classdef preprocessingObj
                     run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix '.*']),Inf);
                 end
                 all_niftis = char(all_niftis, run_niftis);
-                % all_niftis = strvcat(all_niftis, run_niftis);
-                other = cellstr(all_niftis(2:end,:));
 
             end
+            
+            other = cellstr(all_niftis(2:end,:));
 
             % prepare spm batch - coregistration
             matlabbatch{1}.spm.spatial.coreg.estimate.ref = ref;
@@ -471,8 +458,73 @@ classdef preprocessingObj
             matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.files = source; % rename (u)meana file to cmeana now that it is coregistered
             matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.moveto = sourceDir; % same dir
             matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.patrep(1).pattern = 'meana';
-            matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.patrep(1).repl = 'cmeana';
+            matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.patrep(1).repl = [obj.prefix.coregistration, 'meana'];
             matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.unique = false;
+
+            % run job
+            spm('defaults','FMRI');
+            spm_jobman('initcfg');
+            spm_jobman('run', matlabbatch);
+
+        end
+        
+        % runSegmentation (optional)
+        function obj = runSegmentation(obj, subID)
+            % RUNSEGMENTATION Function to perform segmentation of 
+            %   the anatomical image
+            %
+            %   Input
+            %       subNr: subject ID
+            %   Output
+            %       none
+
+            % get BIDS structure of data set
+            BIDS = spm_BIDS(obj.preRoot);
+
+            % get anatomical image (T1)
+            anat_image = spm_BIDS(BIDS,'data',...
+                'sub',subID,'type','T1w');
+            anat_image = anat_image(1); %in case there are more sessions with T1w
+
+            % prepare spm batch
+            matlabbatch{1}.spm.spatial.preproc.channel.vols = anat_image;
+            matlabbatch{1}.spm.spatial.preproc.channel.biasreg = 0.001;
+            matlabbatch{1}.spm.spatial.preproc.channel.biasfwhm = 60;
+            matlabbatch{1}.spm.spatial.preproc.channel.write = [0 1];
+            matlabbatch{1}.spm.spatial.preproc.tissue(1).tpm = {fullfile(obj.spmPath, 'tpm', 'TPM.nii,1')};
+            matlabbatch{1}.spm.spatial.preproc.tissue(1).ngaus = 1;
+            matlabbatch{1}.spm.spatial.preproc.tissue(1).native = [1 0];
+            matlabbatch{1}.spm.spatial.preproc.tissue(1).warped = [0 0];
+            matlabbatch{1}.spm.spatial.preproc.tissue(2).tpm = {fullfile(obj.spmPath, 'tpm', 'TPM.nii,2')};
+            matlabbatch{1}.spm.spatial.preproc.tissue(2).ngaus = 1;
+            matlabbatch{1}.spm.spatial.preproc.tissue(2).native = [1 0];
+            matlabbatch{1}.spm.spatial.preproc.tissue(2).warped = [0 0];
+            matlabbatch{1}.spm.spatial.preproc.tissue(3).tpm = {fullfile(obj.spmPath, 'tpm', 'TPM.nii,3')};
+            matlabbatch{1}.spm.spatial.preproc.tissue(3).ngaus = 2;
+            matlabbatch{1}.spm.spatial.preproc.tissue(3).native = [1 0];
+            matlabbatch{1}.spm.spatial.preproc.tissue(3).warped = [0 0];
+            matlabbatch{1}.spm.spatial.preproc.tissue(4).tpm = {fullfile(obj.spmPath, 'tpm', 'TPM.nii,4')};
+            matlabbatch{1}.spm.spatial.preproc.tissue(4).ngaus = 3;
+            matlabbatch{1}.spm.spatial.preproc.tissue(4).native = [1 0];
+            matlabbatch{1}.spm.spatial.preproc.tissue(4).warped = [0 0];
+            matlabbatch{1}.spm.spatial.preproc.tissue(5).tpm = {fullfile(obj.spmPath, 'tpm', 'TPM.nii,5')};
+            matlabbatch{1}.spm.spatial.preproc.tissue(5).ngaus = 4;
+            matlabbatch{1}.spm.spatial.preproc.tissue(5).native = [1 0];
+            matlabbatch{1}.spm.spatial.preproc.tissue(5).warped = [0 0];
+            matlabbatch{1}.spm.spatial.preproc.tissue(6).tpm = {fullfile(obj.spmPath, 'tpm', 'TPM.nii,6')};
+            matlabbatch{1}.spm.spatial.preproc.tissue(6).ngaus = 2;
+            matlabbatch{1}.spm.spatial.preproc.tissue(6).native = [0 0];
+            matlabbatch{1}.spm.spatial.preproc.tissue(6).warped = [0 0];
+            matlabbatch{1}.spm.spatial.preproc.warp.mrf = 1;
+            matlabbatch{1}.spm.spatial.preproc.warp.cleanup = 1;
+            matlabbatch{1}.spm.spatial.preproc.warp.reg = [0 0.001 0.5 0.05 0.2];
+            matlabbatch{1}.spm.spatial.preproc.warp.affreg = 'mni';
+            matlabbatch{1}.spm.spatial.preproc.warp.fwhm = 0;
+            matlabbatch{1}.spm.spatial.preproc.warp.samp = 3;
+            matlabbatch{1}.spm.spatial.preproc.warp.write = [0 1];
+            matlabbatch{1}.spm.spatial.preproc.warp.vox = NaN;
+            matlabbatch{1}.spm.spatial.preproc.warp.bb = [NaN NaN NaN
+                NaN NaN NaN];
 
             % run job
             spm('defaults','FMRI');
@@ -482,7 +534,7 @@ classdef preprocessingObj
         end
 
         % runNormalization (optional?)
-        function obj = runNormalization(obj, subID)
+        function obj = runNormalization(obj, subID, sesDir)
             % RUNNORMALIZATION Function to perform spatial normalization of
             %   functional images (optional; use normalization parameters
             %   obtained from the segmentation step)
@@ -491,9 +543,53 @@ classdef preprocessingObj
             %       subNr: subject ID
             %   Output
             %       none
+            
+            % get deformation field for normalization parameters
+            anat_image = spm_BIDS(BIDS,'data',...
+                'sub',subID,'type','T1w');
+            def = spm_file(anat_image,'prefix','y'); % we need the deformation field
+            assert(~isempty(def), 'stepNormalization: Could not find deformation field image. Please run segmentation first.')
 
-            % do normalization
-            fprintf('<normalizing %s...>\n', subID) % placeholder code
+            % get EPI images to normalize
+            subIdx = contains(obj.subjects,subID); % index to select the correct number of runs for the subject
+            subRuns = obj.runSel{subIdx}{1};       % the second index reflects the task number - currently only works for 1 task
+            nRuns = numel(subRuns);
+
+            all_niftis = [];
+            for r = 1:nRuns
+                if ~isempty(sesDir)
+                    epi = spm_BIDS(BIDS,'data', ... %todo: add task label to query?
+                        'sub',subID,'ses',sesDir,'run',[obj.BIDSlabel{3} num2str(r)],'type',obj.BIDSlabel{4});
+                else
+                    epi = spm_BIDS(BIDS,'data', ...
+                        'sub',subID,'run',[obj.BIDSlabel{3} num2str(r)],'type',obj.BIDSlabel{4});
+                end
+
+                % (dynamically) change pre-fix in case another step was done first (e.g., to '^r' for realignment)
+                if isempty(obj.currPrefix)
+                    run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),Inf);
+                else
+                    run_niftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix '.*']),Inf);
+                end
+                all_niftis = char(all_niftis, run_niftis);
+
+            end
+
+            EPIs = cellstr(all_niftis(2:end,:));
+            
+            % prepare spm batch
+            matlabbatch = [];
+            matlabbatch{1}.spm.spatial.normalise.write.subj.def = def;
+            matlabbatch{1}.spm.spatial.normalise.write.subj.resample = EPIs;
+            matlabbatch{1}.spm.spatial.normalise.write.woptions.bb = [-78 -112 -70;78 76 85];
+            matlabbatch{1}.spm.spatial.normalise.write.woptions.vox = obj.voxelSize;
+            matlabbatch{1}.spm.spatial.normalise.write.woptions.interp = 4;
+            matlabbatch{1}.spm.spatial.normalise.write.woptions.prefix = obj.prefix.normalization;
+
+            % run job
+            spm('defaults','FMRI');
+            spm_jobman('initcfg');
+            spm_jobman('run', matlabbatch);
 
         end
 
