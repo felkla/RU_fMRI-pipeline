@@ -57,22 +57,22 @@ BIDSlabel{4} = 'bold'; % BIDS file name modality suffix
 % project/sequence/pipeline
 %   1. Slice-timing correction
 %   2. Unwarping/realignment   
-%   3. Coregistration of mean EPI to T1
+%   3. Coregistration of mean EPI to T1                     (estimate only)
 %   4. Segmentation T1 image                                (optional?)
 %   5. Normalization of EPI data                            (optional?)
 %   6. Smoothing                                            (optional)
 
 % Select subjects to preprocess
 % 'subs2incl' should be cell array with your BIDS-compliant numbers: subs2incl = {'001','002','051'}, or 'all' to preprocess all subjects in dsRoot
-subs2incl = {'203'};
+subs2incl = {'001','203'};
 
 % Select which preprocessing steps to perform
-stepSlicetiming     = false;
+stepSlicetiming     = true;
 stepUnwarping       = false; % only if realignment == false
-stepRealignment     = false; % only if unwarping == false
-stepCoregistration  = false;     
-stepSegmentation    = false;
-stepNormalization   = false; 
+stepRealignment     = true; % only if unwarping == false
+stepCoregistration  = true;     
+stepSegmentation    = true;
+stepNormalization   = true; 
 stepSmoothing       = true;
 
 overwriteFiles = false; % overwrite existing preproc files?
@@ -85,7 +85,7 @@ prefix.realignment      = 'r';
 prefix.coregistration   = 'c'; % only used for mean image and if reslicing EPIs
 prefix.normalization    = 'w';
 prefix.smoothing        = 's';
-firstPrefix = prefix.normalization; % determines which files to use for first preprocessing step. Default (i.e., use raw nifti's): firstPrefix = '';
+% firstPrefix = prefix.realignment; % determines which files to use for first preprocessing step. Default (i.e., use raw nifti's): firstPrefix = '';
 
 % Define preprocessing parameters (currently match example dataset)
 nSlices = 66;
@@ -151,6 +151,7 @@ prepVars.preprocessingComponents = [stepSlicetiming,...
 prepVars.prefix.slicetiming = prefix.slicetiming;
 prepVars.prefix.unwarping = prefix.unwarping;
 prepVars.prefix.realignment = prefix.realignment;
+prepVars.prefix.coregistration = prefix.coregistration;
 prepVars.prefix.normalization = prefix.normalization;
 prepVars.prefix.smoothing = prefix.smoothing;
 if exist('firstPrefix', 'var') && ~isempty(firstPrefix)

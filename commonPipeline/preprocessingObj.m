@@ -538,8 +538,7 @@ classdef preprocessingObj
         % runNormalization (optional?)
         function obj = runNormalization(obj, subID, sesDir)
             % RUNNORMALIZATION Function to perform spatial normalization of
-            %   functional images (optional; use normalization parameters
-            %   obtained from the segmentation step)
+            %   functional images
             %
             %   Input
             %       subNr: subject ID
@@ -549,7 +548,7 @@ classdef preprocessingObj
             %       none
             
             % input checks
-            assert(~isnan(obj.voxelSize), 'stepNormalization: EPI voxel size is missing!')
+            assert(all(~isnan(obj.voxelSize)), 'stepNormalization: EPI voxel size is missing!')
             
             % get BIDS structure of data set
             BIDS = spm_BIDS(obj.preRoot);
@@ -621,7 +620,8 @@ classdef preprocessingObj
             %       none
             
             % input checks
-            assert(all(~isnan(obj.smoothingKernel)), 'stepSmoothing: Smoothing kernel size is missing!')
+            assert(all(~isnan(obj.smoothingKernel)), 'stepSmoothing: Size of the smoothing kernel is missing!')
+            assert(all(size(obj.smoothingKernel) == [1,3]), 'stepSmoothing: Size of the smoothing kernel should be defined as a triplet: [x, y, z]!')
             
             % select data for all runs
             subIdx = contains(obj.subjects,subID); % index to select the correct number of runs for the subject
