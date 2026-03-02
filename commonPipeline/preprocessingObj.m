@@ -16,6 +16,8 @@ classdef preprocessingObj
         BIDSlabel % BIDS labels
         overwriteFiles % overwrite existing preprocessed files?
         deleteFiles    % delete intermediate preproc files?
+        runParallel    % perform preprocessing in parallel?
+        maxCores       % max number of ocres to use for parallel processing
 
         % preprocessing steps
         steps % list of preprocessing steps
@@ -69,6 +71,8 @@ classdef preprocessingObj
             obj.BIDSlabel = preprocessingVars.BIDSlabel;
             obj.overwriteFiles = preprocessingVars.overwriteFiles;
             obj.deleteFiles = preprocessingVars.deleteFiles;
+            obj.runParallel = preprocessingVars.runParallel;
+            obj.maxCores = preprocessingVars.maxCores;
 
             % preprocessing steps
             obj.steps = preprocessingVars.steps;
@@ -692,9 +696,55 @@ classdef preprocessingObj
                 end
             end
 
-            % loop over subjects
-            for s = 1:numel(obj.subjects)
-                obj.preprocessSubj(obj.subjects{s});
+            if obj.runParallel
+                % parallel preprocessing of subjects
+                % determine number of processes
+                if numel(obj.subjects) > obj.maxCores
+                    nCores = obj.maxCores;
+                else
+                    nCores = numel(obj.subjects);
+                end
+
+                % distribute subjects across processes
+                nSubs = numel(obj.subjects);
+                subsPerProc  = (1/nCores)*nSubs;
+                parProcs = cell(nCores,1);
+                for i = 1:nCores
+                    idxs = (floor(round((i-1)*subsPerProc)):floor(round((i) * subsPerProc))-1) + 1;
+                    parProcs{i} = obj.subjects(idxs,:);
+                end
+                
+                % start pool of parallel processes
+                pool = gcp('nocreate');
+                if isempty(pool)
+                    pool = parpool(nCores);
+                elseif pool.NumWorkers ~= nCores
+                    fprintf('Wrong number of workers. Starting again.\n');
+                    delete(pool);
+                    pool = parpool(nCores);
+                else
+                    fprintf('Pool with %d workers already running.\n', nCores);
+                end
+
+                % start preprocessing jobs for each process
+                parfor worker = 1:nCores
+                    % get subjects for this process
+                    procSubs = parProcs{worker}
+
+                    % loop over process-specific subjects
+                    for s = 1:numel(procSubs)
+                        obj.preprocessSubj(procSubs{s});
+                    end
+                end
+
+                % close pool
+                delete(pool)
+
+            else
+                % sequential preprocessing of subjects
+                for s = 1:numel(obj.subjects)
+                    obj.preprocessSubj(obj.subjects{s});
+                end
             end
 
             fprintf('Preprocessing finished!\n')

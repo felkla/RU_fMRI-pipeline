@@ -56,11 +56,11 @@ BIDSlabel{4} = 'bold'; % BIDS file name modality suffix
 % Change the settings in this section to accomodate your specific 
 % project/sequence/pipeline
 %   1. Slice-timing correction
-%   2. Unwarping/realignment   
+%   2. Unwarping/realignment                                (currently only realignment)  
 %   3. Coregistration of mean EPI to T1                     (estimate only)
-%   4. Segmentation T1 image                                (optional?)
-%   5. Normalization of EPI data                            (optional?)
-%   6. Smoothing                                            (optional)
+%   4. Segmentation T1 image                                
+%   5. Normalization of EPI data                            
+%   6. Smoothing                                            
 
 % Select subjects to preprocess
 % 'subs2incl' should be cell array with your BIDS-compliant numbers: subs2incl = {'001','002','051'}, or 'all' to preprocess all subjects in dsRoot
@@ -75,8 +75,13 @@ stepSegmentation    = true;
 stepNormalization   = true; 
 stepSmoothing       = true;
 
+% Write and delete options
 overwriteFiles = false; % overwrite existing preproc files?
 deleteFiles = false;    % delete intermediate preproc files?
+
+% Parallel processing options
+runParallel = true; % do parallel processing? NOTE: this might require running Matlab as administrator!
+maxCores = 4; % maximum number of cores to use for parallel processing
 
 % Define prefixes
 prefix.slicetiming      = 'a';
@@ -117,6 +122,8 @@ prepVars.preRoot = preRoot;
 prepVars.BIDSlabel = BIDSlabel;
 prepVars.overwriteFiles = overwriteFiles;
 prepVars.deleteFiles = deleteFiles;
+prepVars.runParallel = runParallel;
+prepVars.maxCores = maxCores;
 
 % Update subjects and runs
 if any(contains(subs2incl,'all'))

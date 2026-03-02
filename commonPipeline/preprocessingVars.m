@@ -15,6 +15,8 @@ classdef preprocessingVars
         BIDSlabel % BIDS labels
         overwriteFiles % overwrite existing preproc files (true/false)
         deleteFiles    % delete intermediate preproc files (true/false)
+        runParallel % perform preprocessing in parallel
+        maxCores % max number of cores to use for parallel processing
 
         % preprocessing steps
         steps   % list of preprocessing steps
@@ -68,6 +70,8 @@ classdef preprocessingVars
             obj.BIDSlabel{4} = 'bold'; % BIDS file name modality suffix
             obj.overwriteFiles = true; % overwrite existing preproc files?
             obj.deleteFiles = false;    % delete intermediate preproc files?
+            obj.runParallel = false;    % perform preprocessing in parallel?
+            obj.maxCores = 7;           % to prevent overloading the CPU
 
             % Choose preprocessing steps
             obj.steps = {'slicetiming',...    
