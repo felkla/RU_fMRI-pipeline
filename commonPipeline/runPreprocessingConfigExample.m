@@ -64,15 +64,15 @@ BIDSlabel{4} = 'bold'; % BIDS file name modality suffix
 
 % Select subjects to preprocess
 % 'subs2incl' should be cell array with your BIDS-compliant numbers: subs2incl = {'001','002','051'}, or 'all' to preprocess all subjects in dsRoot
-subs2incl = {'001','203'};
+subs2incl = {'001'};
 
 % Select which preprocessing steps to perform
 stepSlicetiming     = true;
-stepUnwarping       = false; % only if realignment == false
-stepRealignment     = true; % only if unwarping == false
+stepUnwarping       = true; % only if realignment == false
+stepRealignment     = false; % only if unwarping == false
 stepCoregistration  = true;     
 stepSegmentation    = true;
-stepNormalization   = true; 
+stepNormalization   = true;
 stepSmoothing       = true;
 
 % Write and delete options
@@ -80,7 +80,7 @@ overwriteFiles = false; % overwrite existing preproc files?
 deleteFiles = false;    % delete intermediate preproc files?
 
 % Parallel processing options
-runParallel = true; % do parallel processing? NOTE: this might require running Matlab as administrator!
+runParallel = false; % do parallel processing? NOTE: this might require running Matlab as administrator!
 maxCores = 4; % maximum number of cores to use for parallel processing
 
 % Define prefixes
@@ -90,12 +90,12 @@ prefix.realignment      = 'r';
 prefix.coregistration   = 'c'; % only used for mean image and if reslicing EPIs
 prefix.normalization    = 'w';
 prefix.smoothing        = 's';
-% firstPrefix = prefix.realignment; % determines which files to use for first preprocessing step. Default (i.e., use raw nifti's): firstPrefix = '';
+% firstPrefix = prefix.unwarping; % determines which files to use for first preprocessing step. Default (i.e., use raw nifti's): firstPrefix = '';
 
 % Define preprocessing parameters (currently match example dataset)
 nSlices = 66;
 TR = 1.975; % in seconds
-refSlice = (TR/2)*1000; % in ms
+refSlice = TR/2; % in seconds
 sliceTimings = [1.91499999998,1.85499999998,1.79499999998,1.73499999999,1.67499999999,1.61499999999,1.55499999999,1.495,1.435,1.375,1.315,...
                 1.25749999998,1.19749999998,1.13749999998,1.07749999998,1.01749999999,0.95749999999,0.89749999999,0.83749999999,0.7775,0.7175,0.6575,...
                 0.5975,0.53749999998,0.47749999998,0.41749999998,0.35999999999,0.29999999999,0.23999999999,0.17999999999,0.12,0.06, 0,...
@@ -103,8 +103,10 @@ sliceTimings = [1.91499999998,1.85499999998,1.79499999998,1.73499999999,1.674999
                 1.25749999998,1.19749999998,1.13749999998,1.07749999998,1.01749999999,0.95749999999,0.89749999999,0.83749999999,0.7775,0.7175,0.6575,...
                 0.5975,0.53749999998,0.47749999998,0.41749999998,0.35999999999,0.29999999999,0.23999999999,0.17999999999,0.12,0.06,0]; % in seconds
 epiReadoutTime = 0.03359989248034406; % in seconds
-voxelSize = [2, 2, 2];          % [x,y,z] EPI voxel size in mm
-smoothingKernel = [5, 5, 5];    % [x,y,z] FWHM of smoothing kernel (in mm)
+echoTime1 = 0.00551;   % FieldMap short echo time - in seconds
+echoTime2 = 0.00797;   % FieldMap long echo time - in seconds
+voxelSize = [2, 2, 2];          % [x,y,z] EPI voxel size - in mm
+smoothingKernel = [5, 5, 5];    % [x,y,z] FWHM of smoothing kernel - in mm
 
 %% Apply settings to preprocessing variables object
 % Don't change stuff in this section unless you know what you're doing
@@ -142,7 +144,6 @@ prepVars.stepCoregistration = stepCoregistration;
 prepVars.stepSegmentation = stepSegmentation;
 prepVars.stepNormalization = stepNormalization;
 prepVars.stepSmoothing = stepSmoothing;
-%todo - add option to do coregistration between two functional runs (if ppt left scanner in-between functional runs)
 %todo - add option to do non-linear coregistration (e.g., instead of fmap correction; see büchel pipeline)
 
 % Order of preprocessing steps
@@ -168,9 +169,11 @@ end
 % Update fMRI parameters
 prepVars.nSlices = nSlices;
 prepVars.TR = TR;
-prepVars.refSlice = refSlice;
+prepVars.refSlice = refSlice*1000; % convert to ms
 prepVars.sliceTiming = round(sliceTimings*1000); % convert to ms
-prepVars.epiReadoutTime = round(epiReadoutTime*1000); % convert to ms
+prepVars.epiReadoutTime = round(epiReadoutTime*1000, 2); % convert to ms
+prepVars.echoTime1 = round(echoTime1*1000, 2); % convert to ms
+prepVars.echoTime2 = round(echoTime2*1000, 2); % convert to ms
 prepVars.voxelSize = voxelSize;
 prepVars.smoothingKernel = smoothingKernel;
 

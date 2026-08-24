@@ -40,7 +40,9 @@ classdef preprocessingObj
         refSlice % reference slice (for slice-timing correction)
         sliceTiming % timing of acquisition of each slice relative to beginning of each volume (in s)
         epiReadoutTime % total EPI readout time (for unwarping)
-        voxelSize % [x,y,z] EPI voxel size in mm (for normalization
+        echoTime1 % fieldmap short echo time in ms (for unwarping)
+        echoTime2 % fieldmap long echo time in ms (for unwarping)
+        voxelSize % [x,y,z] EPI voxel size in mm (for normalization)
         smoothingKernel % [x,y,z] FWHM smoothing kernel in mm
 
     end
@@ -95,6 +97,8 @@ classdef preprocessingObj
             obj.refSlice = preprocessingVars.refSlice;
             obj.sliceTiming = preprocessingVars.sliceTiming;
             obj.epiReadoutTime = preprocessingVars.epiReadoutTime;
+            obj.echoTime1 = preprocessingVars.echoTime1;
+            obj.echoTime2 = preprocessingVars.echoTime2;
             obj.voxelSize = preprocessingVars.voxelSize;
             obj.smoothingKernel = preprocessingVars.smoothingKernel;
 
@@ -129,9 +133,11 @@ classdef preprocessingObj
             end
 
             % copy BIDS files to preproc dir 
-            % [dataset_description.json & participants.tsv]
+            % [dataset_description.json & participants.tsv & task.json]
             copyfile(fullfile(obj.dsRoot, 'dataset_description.json'), fullfile(obj.preRoot, 'dataset_description.json'))
             copyfile(fullfile(obj.dsRoot, 'participants.tsv'), fullfile(obj.preRoot, 'participants.tsv'))
+            copyfile(fullfile(obj.dsRoot, [obj.BIDSlabel{1}{1} '_' obj.BIDSlabel{4} '.json']), ...
+                fullfile(obj.preRoot, [obj.BIDSlabel{1}{1} '_' obj.BIDSlabel{4} '.json']))
             
             % create/overwrite subject-specific directory
             if ~exist(fullfile(obj.preRoot,subID), 'dir')
@@ -178,7 +184,7 @@ classdef preprocessingObj
                             obj.currPrefix = obj.prefix.slicetiming;
 
                         case 'unwarping'
-                            obj.runUnwarping(subID);
+                            obj.runUnwarping(subID, sesDir{ses});
                             obj.currPrefix = obj.prefix.unwarping;
 
                         case 'realignment'
@@ -246,7 +252,7 @@ classdef preprocessingObj
             %   STC for sequential (e.g. descending) acquisition order can be
             %   done after realignment, unless you expect lots of motion
             % - Note that the onsets in 1st-level GLM should be adapted to
-            %   reflect the new time-corrected TRs!
+            %   reflect the time-corrected TRs!
             %   See also the SPM website: https://www.fil.ion.ucl.ac.uk/spm/docs/tutorials/fmri/preprocessing/slice_timing/
             
             % some input checks
@@ -302,22 +308,238 @@ classdef preprocessingObj
 
         end
 
-        % runUnwarping (if no realignment)
-        function obj = runUnwarping(obj, subID)
-            % RUNUNWARPING Function to compute voxel-displacement map (VDM)
+        % runUnwarping
+        function obj = runUnwarping(obj, subID, sesDir)
+            % RUNUNWARPING Function to compute voxel displacement maps (VDM)
             %   and unwarp + realign the EPIs (field-map correction)
             %
             %   Input
-            %       subNr: subject ID
+            %       subID: BIDS-compliant subject ID (e.g., 'sub-001')
+            %       sesDir: directory containing anat/fmap/func data of
+            %               current session
             %   Output
             %       none
 
-            % do unwarping
-            fprintf('<unwarping %s...>\n', subID) % placeholder code
-
             % input checks
-            assert(obj.stepRealignment == false);
-            assert(~isnan(obj.epiReadoutTime), 'stepUnwarping: Total EPI read-out time is missing!');
+            assert(obj.stepRealignment == false, 'stepUnwarping: stepRealignment must be set to false!');
+
+            % select data for all runs
+            subIdx = contains(obj.subjects,subID); % index to select the correct number of runs for the subject
+            subRuns = obj.runSel{subIdx}{1};       % the second index reflects the task number - currently only works for 1 task
+            nRuns = numel(subRuns); 
+            
+            % get BIDS structure of data set
+            BIDS = spm_BIDS(obj.preRoot);
+
+            % Step 1: calculate voxel displacement maps (VDMs)
+            % -----------------------------------------------
+            % This step uses functionalities from the FieldMap toolbox to
+            % compute voxel displacement maps (VDMs) for each run
+            % ('session'). To do this, we need the phasediff and magnitude
+            % images produced from the acquired field map.
+
+            % check for FieldMap toolbox and get T1 image
+            TBs = spm('TBs');
+            TBnames = cellstr(char(TBs.name));
+            if any(contains(TBnames,'FieldMap'))
+                FMdir = TBs(contains(TBnames,'FieldMap')).dir;
+                FMtempl = fullfile(FMdir,'T1.nii');
+            else
+                error('FieldMap toolbox missing. Please install the toolbox')
+            end
+
+            % get phasediff image
+            pd = spm_BIDS(BIDS,'data','sub',subID,'type','phasediff');
+            if numel(pd) > 1
+                pdIma = pd(1);
+            end
+
+            % get magnitude image
+            magnIma = strrep(pdIma,'phasediff','magnitude1'); % hack because spm_BIDS can't find the magnitude images
+
+            % get short and long echo times
+            if isnan(obj.echoTime1) || isnan(obj.echoTime2)
+                % get short and long TE from the phasediff json files
+                meta_pd = spm_BIDS(BIDS,'metadata',...
+                    'sub',subID,'type','phasediff');
+
+                % meta_pd = spm_BIDS(BIDS,'metadata','sub',sprintf('%02d',sub_id),'type','phasediff');
+                if numel(meta_pd) > 1 % if there are multiple field maps, take the first one (for now)
+                    meta_pd = meta_pd{1};
+                end
+
+                obj.echoTime1 = round(meta_pd.EchoTime1*1000, 2); % convert to ms
+                obj.echoTime2 = round(meta_pd.EchoTime2*1000, 2); % convert to ms
+            end
+
+            assert(obj.echoTime2 > obj.echoTime1, 'stepUnwarping: longTE (echoTime2) should be larger than shortTE (echoTime1)!')
+
+            % get total EPI readout time
+            if isnan(obj.epiReadoutTime)
+                % get total EPI readout time from the dataset json file
+                meta_bold = spm_BIDS(BIDS,'metadata','sub',subID,'type','bold');
+                if numel(meta_bold) > 1
+                    meta_bold = meta_bold{1};
+                end
+
+                obj.epiReadoutTime = round(meta_bold.TotalReadoutTime.*1000, 2); % convert to ms
+            end
+
+            % perform unit checks
+            assert(obj.echoTime1 > 1 & obj.echoTime1 < 100, 'stepUnwarping: shortTE (echoTime1) should be defined in seconds!')
+            assert(obj.echoTime2 > 1 & obj.echoTime2 < 100, 'stepUnwarping: longTE (echoTime2) should be defined in seconds!')
+            assert(obj.epiReadoutTime > 1 & obj.epiReadoutTime < 1000, 'stepUnwarping: Total EPI read-out time should be defined in seconds!')
+
+            % get first EPI per run (VDMs will be coregistered to these)
+            allNiftis = cell(nRuns,1); % we add separate runs as Sessions in the same module
+            for r = 1:nRuns
+                if ~isempty(sesDir)
+                    epi = spm_BIDS(BIDS,'data', ... %todo: add task label to query?
+                        'sub',subID,'ses',sesDir,'run',[obj.BIDSlabel{3} num2str(r)],'type',obj.BIDSlabel{4});
+                else
+                    epi = spm_BIDS(BIDS,'data', ...
+                        'sub',subID,'run',[obj.BIDSlabel{3} num2str(r)],'type',obj.BIDSlabel{4});
+                end
+                
+                % (dynamically) change pre-fix in case another step was done first (e.g., to '^a' for STC)
+                if isempty(obj.currPrefix)
+                    runNiftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),1); % index the 1st EPI
+                else
+                    runNiftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix '.*']),1); % index the 1st EPI
+                end
+                allNiftis{r,1} = cellstr(runNiftis);
+            end
+
+            % prepare SPM batch
+            matlabbatch = [];
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.data.presubphasemag.phase = pdIma;
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.data.presubphasemag.magnitude = magnIma;
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.defaults.defaultsval.et = [obj.echoTime1 obj.echoTime2];
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.defaults.defaultsval.maskbrain = 1;
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.defaults.defaultsval.blipdir = -1;
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.defaults.defaultsval.tert = obj.epiReadoutTime;
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.defaults.defaultsval.epifm = 0;
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.defaults.defaultsval.ajm = 0;
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.defaults.defaultsval.uflags.method = 'Mark3D';
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.defaults.defaultsval.uflags.fwhm = 10;
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.defaults.defaultsval.uflags.pad = 0;
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.defaults.defaultsval.uflags.ws = 1;
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.defaults.defaultsval.mflags.template = {FMtempl};
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.defaults.defaultsval.mflags.fwhm = 5;
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.defaults.defaultsval.mflags.nerode = 2;
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.defaults.defaultsval.mflags.ndilate = 4;
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.defaults.defaultsval.mflags.thresh = 0.5;
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.defaults.defaultsval.mflags.reg = 0.02;
+            for r = 1:nRuns
+                matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.session(r).epi = allNiftis{r}; % first EPI of each run
+            end
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.matchvdm = 1; % VDMs will be coregistered to the first EPI of each run
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.sessname = 'run';
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.writeunwarped = 0;
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.anat = {''};
+            matlabbatch{1}.spm.tools.fieldmap.calculatevdm.subj.matchanat = 0;
+
+            % run job
+            spm('defaults','FMRI');
+            spm_jobman('initcfg');
+            spm_jobman('run', matlabbatch);
+            
+            % Step 2: move and rename VDM files
+            % ---------------------------------
+            % This step moves the VDM files from the fmap to the func
+            % folder and renames them to clean up a bit.
+            % We have vdm5_scsub-001_ses-01_run-01_phasediff_run1.nii, ..run2.nii, etc in fmap
+            % and want: vdm5_asub-001_task-<task>_ses-01_run-01_bold.nii in func
+            %           vdm5_asub-001_task-<task>_ses-01_run-02_bold.nii in func
+
+            % get source and target location for VDM files
+            VDMdir = spm_file(pdIma,'path');
+            EPIdir = spm_file(allNiftis{1},'path');
+
+            % prepare SPM batch
+            matlabbatch = cell(1,nRuns);
+            for r = 1:nRuns
+                matlabbatch{r}.cfg_basicio.file_dir.file_ops.file_move.files = fullfile(VDMdir,sprintf('vdm5_sc%s_%s_run-01_phasediff_run%d.nii',subID,sesDir,r)); % move and rename vdms
+                matlabbatch{r}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.moveto = EPIdir;
+                matlabbatch{r}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.patrep(1).pattern = 'vdm5_sc';
+                matlabbatch{r}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.patrep(1).repl = 'vdm5_a';
+                matlabbatch{r}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.patrep(2).pattern = sprintf('_run-01_phasediff_run%d',r);
+                matlabbatch{r}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.patrep(2).repl = sprintf('_%s_%s%i_%s',obj.BIDSlabel{1}{1},obj.BIDSlabel{3},r, obj.BIDSlabel{4});
+                matlabbatch{r}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.unique = false;
+            end
+
+            % run job
+            spm('defaults','FMRI');
+            spm_jobman('initcfg');
+            spm_jobman('run', matlabbatch);
+
+            % Step 3: perform realignment and unwarping
+            % -----------------------------------------
+            % This step performs realignment of the EPIs, unwarps
+            % them using the VDMs, and creates a mean image of the 
+            % realigned and unwarped EPIs (which is used for 
+            % coregistration).
+
+            % get EPIs and VDMs
+            allNiftis = cell(nRuns,1); % we add separate runs as Sessions in the same module
+            allVDMs = cell(nRuns,1);
+            for r = 1:nRuns
+                % select the right session/run
+                if ~isempty(sesDir)
+                    epi = spm_BIDS(BIDS,'data', ... %todo: add task label to query?
+                        'sub',subID,'ses',sesDir,'run',[obj.BIDSlabel{3} num2str(r)],'type',obj.BIDSlabel{4});
+                else
+                    epi = spm_BIDS(BIDS,'data', ...
+                        'sub',subID,'run',[obj.BIDSlabel{3} num2str(r)],'type',obj.BIDSlabel{4});
+                end
+                
+                % get the EPIs
+                if isempty(obj.currPrefix)
+                    runNiftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix]),Inf);
+                else
+                    runNiftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.currPrefix '.*']),Inf);
+                end
+                allNiftis{r,1}  =  cellstr(runNiftis);
+
+                % get the VDMs
+                allVDMs{r,1} = cellstr(spm_file(epi,'prefix','vdm5_a'));
+
+            end
+            
+            % prepare SPM batch
+            matlabbatch = [];
+            for r = 1:nRuns
+                matlabbatch{1}.spm.spatial.realignunwarp.data(r).scans = allNiftis{r}; % all EPIs per run
+                matlabbatch{1}.spm.spatial.realignunwarp.data(r).pmscan = allVDMs{r}; % VDMs per run
+            end
+
+            matlabbatch{1}.spm.spatial.realignunwarp.eoptions.quality = 0.9;
+            matlabbatch{1}.spm.spatial.realignunwarp.eoptions.sep = 4;
+            matlabbatch{1}.spm.spatial.realignunwarp.eoptions.fwhm = 5;
+            matlabbatch{1}.spm.spatial.realignunwarp.eoptions.rtm = 1; % register to the mean image for better performance. Set to 0 to save time
+            matlabbatch{1}.spm.spatial.realignunwarp.eoptions.einterp = 2;
+            matlabbatch{1}.spm.spatial.realignunwarp.eoptions.ewrap = [0 0 0];
+            matlabbatch{1}.spm.spatial.realignunwarp.eoptions.weight = '';
+            matlabbatch{1}.spm.spatial.realignunwarp.uweoptions.basfcn = [12 12];
+            matlabbatch{1}.spm.spatial.realignunwarp.uweoptions.regorder = 1;
+            matlabbatch{1}.spm.spatial.realignunwarp.uweoptions.lambda = 100000;
+            matlabbatch{1}.spm.spatial.realignunwarp.uweoptions.jm = 0;
+            matlabbatch{1}.spm.spatial.realignunwarp.uweoptions.fot = [4 5];
+            matlabbatch{1}.spm.spatial.realignunwarp.uweoptions.sot = [];
+            matlabbatch{1}.spm.spatial.realignunwarp.uweoptions.uwfwhm = 4;
+            matlabbatch{1}.spm.spatial.realignunwarp.uweoptions.rem = 1;
+            matlabbatch{1}.spm.spatial.realignunwarp.uweoptions.noi = 5;
+            matlabbatch{1}.spm.spatial.realignunwarp.uweoptions.expround = 'Average';
+            matlabbatch{1}.spm.spatial.realignunwarp.uwroptions.uwwhich = [2 1];
+            matlabbatch{1}.spm.spatial.realignunwarp.uwroptions.rinterp = 7; % higher than default (= 4) to increase performance. Set to 4 to save time
+            matlabbatch{1}.spm.spatial.realignunwarp.uwroptions.wrap = [0 0 0];
+            matlabbatch{1}.spm.spatial.realignunwarp.uwroptions.mask = 1;
+            matlabbatch{1}.spm.spatial.realignunwarp.uwroptions.prefix = 'u';
+
+            % run job
+            spm('defaults','FMRI');
+            spm_jobman('initcfg');
+            spm_jobman('run', matlabbatch);
 
         end        
         
@@ -402,26 +624,24 @@ classdef preprocessingObj
             %
             % notes:
             %   Currently performs linear coregistration on the realigned
-            %   images. todo: make compatible with unwarped (fm-corrected)
             %   images.
-            % 
-            %   The Büchel lab performs non-linear coreg instead of 
-            %   field-map correction.
+            %   Some people in the Büchel lab perform non-linear coreg 
+            %   instead of field-map correction.
 
             % get BIDS structure of data set
             BIDS = spm_BIDS(obj.preRoot);
 
-            % get reference image (anatomical T1)
+            % get reference image - anatomical T1
             anat = spm_BIDS(BIDS,'data',...
                 'sub',subID,'type','T1w');
             refIma = anat(1); %in case there are more sessions with T1w
 
-            % get source image (mean realigned image)
-            epi = spm_BIDS(BIDS,'data',...
+            % get source image - mean image of slice-time corrected and realigned (& unwarped) EPIs
+            epi = spm_BIDS(BIDS,'data',...  
                 'sub',subID,'type',obj.BIDSlabel{4});
-            meanIma = spm_file(epi,'prefix','meana'); % we need the slice-time (and field-map?) corrected mean image: (u)meanasub.nii
+            meanIma = cellstr(spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix','^mean.*')));
             sourceIma = meanIma(1); % in case of multiple runs
-            assert(exist(sourceIma{1}, 'file'), 'stepCoregistration: Could not find mean realigned image. Please run realignment first.')
+            assert(~isempty(sourceIma{1}), 'stepCoregistration: Could not find mean realigned (and unwarped) image. Please run realignment first.')
             sourceDir = spm_file(sourceIma,'path');
 
             % get other images (i.e., all EPIs across runs)
@@ -461,10 +681,10 @@ classdef preprocessingObj
             matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.fwhm = [7 7];
 
             % prepare spm batch - new co-registered mean image
-            matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.files = sourceIma; % rename (u)meana file to cmeana now that it is coregistered
+            matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.files = sourceIma; % rename mean(ua) file to cmean(ua) now that it is coregistered
             matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.moveto = sourceDir; % same dir
-            matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.patrep(1).pattern = 'meana';
-            matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.patrep(1).repl = [obj.prefix.coregistration, 'meana'];
+            matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.patrep(1).pattern = 'mean';
+            matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.patrep(1).repl = [obj.prefix.coregistration, 'mean'];
             matlabbatch{2}.cfg_basicio.file_dir.file_ops.file_move.action.moveren.unique = false;
 
             % run job
@@ -586,12 +806,13 @@ classdef preprocessingObj
             
             allNiftis = cellstr(allNiftis(2:end,:));
 
-            % check if coregistration has been done
+            % check if coregistration has been done by testing if the
+            % coregistered mean image exists
             epi = spm_BIDS(BIDS,'data',...
                 'sub',subID,'type',obj.BIDSlabel{4});
-            meanIma = spm_file(epi,'prefix',[obj.prefix.coregistration, 'meana']); 
-            meanIma = meanIma(1);
-            assert(exist(meanIma{1}, 'file'), 'stepNormalization: Images have not coregistered. Please run coregistration first.')
+            meanIma = cellstr(spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.prefix.coregistration 'mean.*'])));
+            meanIma = meanIma(1); % in case of multiple runs
+            assert(~isempty(meanIma{1}), 'stepNormalization: Images have not coregistered. Please run coregistration first.')
             
             % prepare spm batch
             matlabbatch = [];
