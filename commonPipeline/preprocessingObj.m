@@ -798,8 +798,9 @@ classdef preprocessingObj
                         'sub',subID,'run',[obj.BIDSlabel{3} num2str(r)],'type',obj.BIDSlabel{4});
                 end
 
-                % these need to be the *coregistered* realigned EPIs
-                runNiftis = spm_select('ExtFPlist', spm_file(epi,'path'), spm_file(spm_file(epi,'filename'),'prefix',['^' obj.prefix.realignment '.*']),Inf);
+                % these need to be the *coregistered* realigned/unwarped EPIs
+                runNiftis = spm_select('ExtFPlist', spm_file(epi,'path'), ...
+                    spm_file(spm_file(epi,'filename'),'prefix',['^(?:' obj.prefix.realignment '|' obj.prefix.unwarping ').*']),Inf);
                 allNiftis = char(allNiftis, runNiftis);
 
             end

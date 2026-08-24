@@ -56,8 +56,8 @@ BIDSlabel{4} = 'bold'; % BIDS file name modality suffix
 % Change the settings in this section to accomodate your specific 
 % project/sequence/pipeline
 %   1. Slice-timing correction
-%   2. Unwarping/realignment                                (currently only realignment)  
-%   3. Coregistration of mean EPI to T1                     (estimate only)
+%   2. Unwarping/realignment  
+%   3. Coregistration of mean EPI to T1
 %   4. Segmentation T1 image                                
 %   5. Normalization of EPI data                            
 %   6. Smoothing                                            
