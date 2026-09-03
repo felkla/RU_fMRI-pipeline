@@ -349,10 +349,8 @@ classdef preprocessingObj
             end
 
             % get phasediff image
-            pd = spm_BIDS(BIDS,'data','sub',subID,'type','phasediff');
-            if numel(pd) > 1
-                pdIma = pd(1);
-            end
+            pd = spm_BIDS(BIDS,'data','sub',subID,'ses',sesDir,'type','phasediff');
+            pdIma = pd(1); % in case there are multiple pd images, take the first one.
 
             % get magnitude image
             magnIma = strrep(pdIma,'phasediff','magnitude1'); % hack because spm_BIDS can't find the magnitude images
@@ -361,10 +359,9 @@ classdef preprocessingObj
             if isnan(obj.echoTime1) || isnan(obj.echoTime2)
                 % get short and long TE from the phasediff json files
                 meta_pd = spm_BIDS(BIDS,'metadata',...
-                    'sub',subID,'type','phasediff');
+                    'sub',subID,'ses',sesDir,'type','phasediff');
 
-                % meta_pd = spm_BIDS(BIDS,'metadata','sub',sprintf('%02d',sub_id),'type','phasediff');
-                if numel(meta_pd) > 1 % if there are multiple field maps, take the first one (for now)
+                if numel(meta_pd) > 1 % if there are multiple field maps, take the metadata of the first one (for now)
                     meta_pd = meta_pd{1};
                 end
 
@@ -377,11 +374,7 @@ classdef preprocessingObj
             % get total EPI readout time
             if isnan(obj.epiReadoutTime)
                 % get total EPI readout time from the dataset json file
-                meta_bold = spm_BIDS(BIDS,'metadata','sub',subID,'type','bold');
-                if numel(meta_bold) > 1
-                    meta_bold = meta_bold{1};
-                end
-
+                meta_bold = spm_BIDS(BIDS,'metadata','sub',subID,'ses',sesDir,'run','run-01','type','bold'); % assume constant across runs
                 obj.epiReadoutTime = round(meta_bold.TotalReadoutTime.*1000, 2); % convert to ms
             end
 
